@@ -1,0 +1,4226 @@
+<meta charset="utf-8">
+<title>Ultimate Pickleball Clash</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Rubik:wght@400;500;600&display=swap">
+<style>
+  :root {
+    /* Layout: full-bleed 3D court; title chip top-left, zone chip top-centre, help/reset top-right, joystick floats bottom-left on touch */
+    --ink: #0e1830;
+    --panel: rgba(14, 24, 48, 0.86);
+    --line: rgba(255, 255, 255, 0.12);
+    --paper: #f2f5ff;
+    --muted: #a8b4d6;
+    --ball: #dcf54a;
+    --team-a: #ff8a2b;
+    --team-b: #b45cff;
+    --kitchen: #58a6ea;
+    --font-display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+    --font-body: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--font-body);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  [hidden] { display: none !important; }
+
+  #stage { position: fixed; inset: 0; touch-action: none; }
+  #c { display: block; width: 100%; height: 100%; }
+
+  .chip {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .title {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: max(16px, env(safe-area-inset-left, 0px));
+    padding: 9px 13px 10px;
+    pointer-events: none;
+  }
+  .title .eyebrow {
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .title h1 {
+    margin: 2px 0 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: 0.02em;
+  }
+  .title h1 span { color: var(--ball); }
+  /* The longer name only fits beside the scoreboard on wide screens; the menu shows it everywhere. */
+  @media (max-width: 1080px) { .title { display: none; } }
+
+  .hud-mid {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    pointer-events: none;
+  }
+  .rally {
+    display: flex;
+    gap: 14px;
+    padding: 7px 14px 8px;
+  }
+  .rally span { display: flex; flex-direction: column; align-items: center; }
+  .rally small {
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .rally b {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.05;
+    min-width: 2ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .rally span:first-child b { color: var(--ball); }
+  .zone {
+    padding: 7px 14px 8px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .banner {
+    position: fixed;
+    left: 50%;
+    top: 30%;
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0;
+    text-align: center;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .banner b {
+    display: block;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(40px, 9vw, 72px);
+    line-height: 1;
+    letter-spacing: 0.03em;
+    color: var(--paper);
+    -webkit-text-stroke: 2px var(--ink);
+    text-shadow: 0 4px 0 var(--ink), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  .banner[data-team="a"] b { color: var(--team-a); }
+  .banner[data-team="b"] b { color: var(--team-b); }
+  .banner small {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--panel);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .banner.show { animation: pop 1.6s ease-out forwards; }
+  @keyframes pop {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+    12%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+    20%  { transform: translate(-50%, -50%) scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -58%) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .banner.show { animation-duration: 1.6s; animation-timing-function: steps(1, end); }
+  }
+
+  .prompt {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+    transform: translateX(-50%);
+    padding: 10px 16px;
+    font-family: var(--font-display);
+    font-size: 18px;
+    letter-spacing: 0.03em;
+    color: var(--ball);
+    pointer-events: none;
+    white-space: nowrap;
+    animation: breathe 1.6s ease-in-out infinite;
+  }
+  @keyframes breathe { 50% { opacity: 0.65; } }
+  /* On touch screens the thumb buttons own the bottom edge. */
+  body.touch .prompt { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 122px); font-size: 16px; }
+
+  .shot-pad {
+    position: fixed;
+    right: calc(env(safe-area-inset-right, 0px) + 16px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    width: 206px;
+    height: 196px;
+    pointer-events: none;
+  }
+  .shot {
+    position: absolute;
+    border: 0;
+    border-radius: 50%;
+    font-family: var(--font-display);
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    pointer-events: auto;
+    touch-action: none;
+    box-shadow: 0 5px 0 rgba(0, 0, 0, 0.28), 0 8px 18px rgba(0, 0, 0, 0.25);
+    transition: transform 0.06s;
+  }
+  .shot.down { transform: translateY(3px) scale(0.95); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.28); }
+  .shot.drive { right: 0; bottom: 0; width: 100px; height: 100px; font-size: 21px; background: var(--ball); }
+  .shot.dink  { right: 112px; bottom: 6px; width: 72px; height: 72px; font-size: 16px; background: #8fd3ff; }
+  .shot.lob   { right: 16px; bottom: 114px; width: 72px; height: 72px; font-size: 16px; background: #ffc56b; }
+
+  /* Ultimate: a ring fills around the ULT button; full = glowing; armed = flame. */
+  .shot.ult {
+    --fill: 0;
+    right: 108px;
+    bottom: 96px;
+    width: 64px;
+    height: 64px;
+    font-size: 15px;
+    color: var(--paper);
+    background:
+      radial-gradient(circle, #24130a 58%, transparent 60%),
+      conic-gradient(#ff7a1a calc(var(--fill) * 360deg), rgba(255, 255, 255, 0.18) 0);
+  }
+  .shot.ult.ready { color: var(--ink); background: radial-gradient(circle, #ffd166, #ff7a1a); animation: ultGlow 0.9s ease-in-out infinite; }
+  .shot.ult.armed { color: var(--paper); background: radial-gradient(circle, #ff4d1a, #b3200a); animation: ultGlow 0.35s ease-in-out infinite; }
+  @keyframes ultGlow {
+    50% { box-shadow: 0 0 0 6px rgba(255, 122, 26, 0.45), 0 0 24px rgba(255, 122, 26, 0.8); }
+  }
+
+  .ult-chip {
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left, 0px));
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    pointer-events: none;
+  }
+  .ult-chip .ult-name { color: var(--ult, #ffb347); }
+  .pick .pu { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; margin-top: -3px; }
+  .ult-name {
+    font-family: var(--font-display);
+    font-size: 15px;
+    letter-spacing: 0.03em;
+    color: #ff9a4d;
+    white-space: nowrap;
+  }
+  .ult-bar {
+    position: relative;
+    width: 110px;
+    height: 10px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+  }
+  .ult-bar i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    border-radius: 5px;
+    background: linear-gradient(90deg, #ff7a1a, #ffd166);
+    transition: width 0.25s;
+  }
+  .ult-state { font-size: 12px; color: var(--muted); white-space: nowrap; min-width: 8.5em; }
+  .ult-chip.ready { border-color: #ff9a4d; animation: ultGlow 0.9s ease-in-out infinite; }
+  .ult-chip.ready .ult-state, .ult-chip.armed .ult-state { color: var(--paper); font-weight: 600; }
+  .ult-chip.armed { border-color: #ff4d1a; background: rgba(120, 30, 8, 0.9); animation: ultGlow 0.35s ease-in-out infinite; }
+  body.touch .ult-chip { display: none; }
+  body.in-menu .ult-chip { display: none !important; }
+  @media (max-width: 1500px) {
+    .keys { left: auto; right: max(16px, env(safe-area-inset-right, 0px)); transform: none; }
+  }
+  .zone small {
+    display: block;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .zone b {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 19px;
+    letter-spacing: 0.03em;
+  }
+  .zone[data-zone="kitchen"] { border-color: var(--kitchen); box-shadow: 0 0 0 2px rgba(88, 166, 234, 0.35); }
+  .zone[data-zone="kitchen"] b { color: var(--kitchen); }
+
+  .tools {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    gap: 8px;
+  }
+  .tools button {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--paper);
+    font: 500 13px var(--font-body);
+    padding: 9px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .tools button:hover { background: rgba(30, 44, 80, 0.92); }
+  button:focus-visible { outline: 2px solid var(--ball); outline-offset: 2px; }
+
+  .keys {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--muted);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .keys kbd {
+    display: inline-block;
+    min-width: 1.6em;
+    padding: 1px 5px;
+    margin: 0 1px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--paper);
+    font: 600 12px var(--font-body);
+    text-align: center;
+  }
+
+  /* Touch joystick: the zone covers the lower-left of the screen; the base
+     appears where the thumb lands and rests at a default spot otherwise. */
+  #joyZone {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 55%;
+    height: 70%;
+    touch-action: none;
+  }
+  .joy-base {
+    position: fixed;
+    width: 120px;
+    height: 120px;
+    margin: -60px 0 0 -60px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    background: rgba(14, 24, 48, 0.28);
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .joy-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 54px;
+    height: 54px;
+    margin: -27px 0 0 -27px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+  }
+  .joy-base.idle { opacity: 0.55; }
+
+  .help {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(8, 14, 28, 0.55);
+  }
+  .help .card {
+    width: min(420px, 100%);
+    padding: 20px 22px 18px;
+    border-radius: 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .help h2 {
+    margin: 0 0 4px;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 26px;
+    letter-spacing: 0.02em;
+  }
+  .help p { margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+  .help dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 14px;
+    margin: 0 0 16px;
+    font-size: 14px;
+  }
+  .help dt { font-weight: 600; }
+  .help dd { margin: 0; color: var(--muted); }
+  .help .go {
+    width: 100%;
+    border: 0;
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--ball);
+    color: var(--ink);
+    font: 400 20px var(--font-display);
+    letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+
+  /* Player pick: 12 cards and a countdown bar. */
+  .pick .card { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+  .pick .count { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 2px 0 6px; }
+  .pick .count b { font: 400 30px var(--font-display); color: var(--ball); font-variant-numeric: tabular-nums; }
+  .pick .count.hurry b { color: #ff5a5a; }
+  .pick .count small { color: var(--muted); font-size: 13px; }
+  .pick .tbar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); overflow: hidden; margin-bottom: 14px; }
+  .pick .tbar i { display: block; height: 100%; width: 100%; background: var(--ball); transform-origin: left; }
+  .pick .count.hurry + .tbar i { background: #ff5a5a; }
+  .pick .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .pick .pc {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 10px 4px 9px; border-radius: 12px; cursor: pointer;
+    border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05);
+    color: var(--paper); font: 500 12.5px var(--font-body); line-height: 1.2; text-align: center;
+  }
+  .pick .pc:hover, .pick .pc:focus-visible { background: rgba(255, 255, 255, 0.12); border-color: var(--ball); }
+  .pick .av { position: relative; width: 46px; height: 46px; border-radius: 50%; overflow: hidden; }
+  .pick .av .hr { position: absolute; left: 0; right: 0; top: 0; height: 38%; }
+  .pick .av .sh { position: absolute; left: -10%; right: -10%; bottom: -30%; height: 52%; border-radius: 50%; }
+  .pick .av .pd { position: absolute; right: 2px; top: 52%; width: 11px; height: 14px; border-radius: 6px; border: 1.5px solid rgba(0, 0, 0, 0.3); }
+  @media (max-width: 520px) { .pick .grid { grid-template-columns: repeat(3, 1fr); } .pick .pc { font-size: 12px; } }
+
+  .tools button[aria-pressed="true"] { color: var(--ink); background: var(--ball); border-color: transparent; }
+
+  /* Scoreboard: your team left (orange), rivals right (violet), score call between. */
+  .board { display: flex; align-items: stretch; overflow: hidden; padding: 0; }
+  .board .side {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 4px solid transparent;
+  }
+  .board .side.a { border-bottom-color: var(--team-a); }
+  .board .side.b { border-bottom-color: var(--team-b); }
+  .board .nm { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--muted); white-space: nowrap; }
+  .board .side b {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 30px;
+    line-height: 1;
+    min-width: 1.3ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .board .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ball);
+    box-shadow: 0 0 8px var(--ball);
+    visibility: hidden;
+  }
+  .board .side.serving .dot { visibility: visible; }
+  .board .side.serving .nm { color: var(--paper); }
+  .board .call {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.06);
+    min-width: 84px;
+  }
+  .board .call b { font-family: var(--font-display); font-weight: 400; font-size: 18px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+  .board .call small { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  .opt { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .opt > span { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .seg { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, 0.07); }
+  .seg button {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: 500 14px var(--font-body);
+    padding: 9px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .seg button:hover { color: var(--paper); }
+  .seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); }
+  .help .note { font-size: 13px; margin-top: -4px; }
+  .help details { margin: 0 0 16px; font-size: 14px; }
+  .help summary { cursor: pointer; color: var(--paper); font-weight: 500; margin-bottom: 10px; }
+  .help details dl { margin: 0; font-size: 13px; }
+  .help details.disclosure p { margin: 10px 0 0; font-size: 12.5px; }
+  .help details.disclosure dl { grid-template-columns: max-content minmax(0, 1fr); column-gap: 16px; }
+  .help details.disclosure dt { white-space: nowrap; }
+  .btns { display: flex; gap: 8px; }
+  .btns .go { flex: 2; }
+  .ghost {
+    flex: 1;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    background: transparent;
+    color: var(--paper);
+    font: 500 15px var(--font-body);
+    cursor: pointer;
+  }
+  .ghost:hover { background: rgba(255, 255, 255, 0.06); }
+  .result { text-align: center; }
+  .result h2 { font-size: 40px; }
+  .result h2[data-team="a"] { color: var(--team-a); }
+  .result h2[data-team="b"] { color: var(--team-b); }
+  /* Title menu: one strong element (the wordmark), a quiet stack of options. */
+  .menu { background: linear-gradient(90deg, rgba(8, 14, 28, 0.7), rgba(8, 14, 28, 0.15) 70%); }
+  .menu .card { width: min(400px, 100%); }
+  .menu .wordmark {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(38px, 7vw, 54px);
+    line-height: 0.92;
+    letter-spacing: 0.01em;
+    transform: rotate(-3deg);
+    transform-origin: left center;
+    text-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+  }
+  .wordmark span { display: block; }
+  .wordmark span + span { margin-left: 0.25em; }
+  .wordmark span:last-child { color: var(--ball); margin-left: 0.5em; }
+  .menu .tag {
+    margin: 10px 0 16px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .menu .note { display: block; font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
+  .menu .go { margin: 4px 0 12px; font-size: 26px; padding: 14px; }
+  .menu details { margin: 0; }
+  @media (min-width: 900px) {
+    .menu { place-items: center start; padding-left: max(6vw, 24px); }
+  }
+  /* Tall phones: card at the bottom, the demo court visible above it. */
+  @media (max-aspect-ratio: 4/5) {
+    .menu {
+      place-items: end center;
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+      background: linear-gradient(180deg, rgba(8, 14, 28, 0) 25%, rgba(8, 14, 28, 0.75));
+    }
+  }
+  body.in-menu .title,
+  body.in-menu .hud-mid,
+  body.in-menu .tools,
+  body.in-menu .keys,
+  body.in-menu .prompt,
+  body.in-menu #joyZone,
+  body.in-menu #joyBase,
+  body.in-menu .shot-pad,
+  body.in-menu #bars { display: none !important; }
+
+  /* Fatigue bars float over each player's head. Ticks mark the 75% and 50%
+     thresholds where run speed drops. */
+  .fbar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 46px;
+    height: 8px;
+    margin: -4px 0 0 -23px;
+    border-radius: 4px;
+    background: rgba(14, 24, 48, 0.78);
+    box-shadow: 0 0 0 1.5px rgba(14, 24, 48, 0.78);
+    overflow: hidden;
+    pointer-events: none;
+    will-change: transform;
+  }
+  .fbar i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 100%;
+    border-radius: 4px;
+    background: #4ade80;
+    transition: background-color 0.2s;
+  }
+  .fbar.mid i { background: #fbbf24; }
+  .fbar.low i { background: #f87171; }
+  .fbar::before,
+  .fbar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1.5px;
+    background: rgba(14, 24, 48, 0.85);
+    z-index: 1;
+  }
+  .fbar::before { left: 50%; }
+  .fbar::after { left: 75%; }
+  .fbar.you { width: 56px; margin-left: -28px; height: 9px; }
+  .btns.stack { flex-direction: column; }
+  .result .final.small { font-size: 40px; }
+
+  /* Match statistics on the game-over card, and recent games on the menu. */
+  #over .card { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+  .mstats { width: 100%; border-collapse: collapse; margin: 4px 0 16px; font-size: 13px; text-align: right; }
+  .mstats th { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 4px 6px; }
+  .mstats td { padding: 6px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .mstats th:first-child, .mstats td:first-child { text-align: left; }
+  .mstats td:first-child { font-weight: 600; }
+  .mstats td:first-child small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+  .mstats tr.a td:first-child { border-left: 3px solid var(--team-a); padding-left: 8px; }
+  .mstats tr.b td:first-child { border-left: 3px solid var(--team-b); padding-left: 8px; }
+  .mstats tr.you td { color: var(--ball); }
+  .hist { margin: 0 0 14px; }
+  .hist > span { display: block; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .hist ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .hist li { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: center; padding: 7px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); }
+  .hist .res { font: 400 17px var(--font-display); font-variant-numeric: tabular-nums; grid-row: span 2; min-width: 4.2em; }
+  .hist .res.w { color: var(--team-a); }
+  .hist .res.l { color: var(--team-b); }
+  .hist .who { font-size: 12.5px; line-height: 1.3; }
+  .hist .vs { font-size: 12px; color: var(--muted); line-height: 1.3; }
+  .hist .none { font-size: 13px; color: var(--muted); }
+
+  .result .final {
+    font-family: var(--font-display);
+    font-size: 56px;
+    line-height: 1.1;
+    margin: 4px 0 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .help dl { grid-template-columns: 4.5em 1fr; }
+
+  @media (max-width: 900px) {
+    .keys { display: none; }
+  }
+  @media (max-width: 640px) {
+    .title .eyebrow { display: none; }
+    .title h1 { font-size: 19px; }
+    .hud-mid { top: calc(env(safe-area-inset-top, 0px) + 96px); }
+    body.touch .prompt { top: calc(env(safe-area-inset-top, 0px) + 156px); }
+    .zone { display: none; }
+    .board .nm { display: none; }
+    .board .side b { font-size: 26px; }
+    .tools {
+      gap: 6px;
+      max-width: calc(100vw - 180px);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .tools button { padding: 8px 9px; font-size: 12px; }
+    .help .card { max-height: calc(100vh - 32px); overflow-y: auto; }
+  }
+  @media (max-height: 480px) {
+    .help .card { max-height: calc(100vh - 32px); overflow-y: auto; }
+    .help p { display: none; }
+  }
+</style>
+
+<div id="stage"><canvas id="c" aria-label="3D pickleball court with four players"></canvas></div>
+
+<div class="chip title">
+  <h1>ULTIMATE PICKLEBALL <span>CLASH</span></h1>
+</div>
+
+<div class="hud-mid">
+  <div class="chip board" aria-live="polite">
+    <div class="side a" id="sideA"><span class="dot" aria-hidden="true"></span><span class="nm" id="nameA">You · Kai</span><b id="scoreA">0</b></div>
+    <div class="call"><b id="call">0-0-2</b><small id="callWho">You serve</small></div>
+    <div class="side b" id="sideB"><b id="scoreB">0</b><span class="nm" id="nameB">Rex · Juno</span><span class="dot" aria-hidden="true"></span></div>
+  </div>
+  <div class="chip zone" id="zone" data-zone="baseline">
+    <small>You are in</small>
+    <b id="zoneName">Baseline</b>
+  </div>
+</div>
+
+<div class="tools">
+  <button type="button" id="soundBtn" aria-pressed="true">Sound: On</button>
+  <button type="button" id="autoBtn" aria-pressed="false">Auto-swing: Off</button>
+  <button type="button" id="pauseBtn">Pause</button>
+</div>
+
+<div id="bars" aria-hidden="true"></div>
+<div class="banner" id="banner" aria-live="assertive"><b></b><small></small></div>
+<div class="chip prompt" id="prompt" hidden></div>
+
+<div class="chip keys" id="keys">
+  Move <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · Drive <kbd>Space</kbd> · Dink <kbd>K</kbd> · Lob <kbd>L</kbd> · Aim <kbd>←</kbd><kbd>→</kbd> · Ultimate <kbd>M</kbd> · Pause <kbd>Esc</kbd>
+</div>
+
+<div id="joyZone" hidden></div>
+<div class="joy-base idle" id="joyBase" hidden><div class="joy-knob" id="joyKnob"></div></div>
+<div class="shot-pad" id="shotPad" hidden>
+  <button type="button" class="shot drive" data-shot="drive">DRIVE</button>
+  <button type="button" class="shot dink" data-shot="dink">DINK</button>
+  <button type="button" class="shot lob" data-shot="lob">LOB</button>
+  <button type="button" class="shot ult" id="ultBtn" data-shot="ult" aria-label="Ultimate: One Shot">ULT</button>
+</div>
+
+<div class="chip ult-chip" id="ultChip">
+  <span class="ult-name">One Shot</span>
+  <span class="ult-bar"><i id="ultFill"></i></span>
+  <span class="ult-state" id="ultState">Charging</span>
+</div>
+
+<div class="help menu" id="menu" role="dialog" aria-modal="true" aria-labelledby="menuTitle" hidden>
+  <div class="card">
+    <h2 class="wordmark" id="menuTitle"><span>ULTIMATE</span> <span>PICKLEBALL</span> <span>CLASH</span></h2>
+    <p class="tag">2v2 pickleball · first to 11, win by 2</p>
+    <div class="opt">
+      <span id="modeLabel">Mode</span>
+      <div class="seg" id="modeSeg" role="group" aria-labelledby="modeLabel">
+        <button type="button" id="mode-classic" data-v="classic">Classic</button>
+        <button type="button" id="mode-ultimate" data-v="ultimate">Ultimate</button>
+      </div>
+      <small class="note" id="modeNote"></small>
+    </div>
+    <div class="opt">
+      <span id="diffLabel">Rivals</span>
+      <div class="seg" id="diffSeg" role="group" aria-labelledby="diffLabel">
+        <button type="button" id="diff-easy" data-v="easy">Easy</button>
+        <button type="button" id="diff-normal" data-v="normal">Normal</button>
+        <button type="button" id="diff-hard" data-v="hard">Hard</button>
+      </div>
+    </div>
+    <div class="opt">
+      <span id="autoLabel">Auto-swing</span>
+      <div class="seg" id="autoSeg" role="group" aria-labelledby="autoLabel">
+        <button type="button" id="auto-off" data-v="off">Off</button>
+        <button type="button" id="auto-on" data-v="on">On: you only move</button>
+      </div>
+    </div>
+    <div class="hist" id="menuHist" aria-live="polite"></div>
+    <button type="button" class="go" id="playBtn">Play</button>
+    <details>
+      <summary>Rules and controls</summary>
+      <dl>
+        <dt>Serve</dt><dd>Underhand and crosscourt, past the kitchen. Space or any shot button. Hold left or right to aim.</dd>
+        <dt>2 bounces</dt><dd>The serve and the return must each bounce before anyone volleys.</dd>
+        <dt>Kitchen</dt><dd>No volleys while standing in the kitchen. Let the ball bounce first.</dd>
+        <dt>Mode</dt><dd>Classic: only you use an ultimate. Ultimate: all four players use theirs.</dd>
+        <dt>Scoring</dt><dd>Only the serving team scores. Both partners serve before a side out. The call reads server score, receiver score, server number.</dd>
+        <dt>Drive</dt><dd>Space or J. Becomes a smash on a high ball near the net.</dd>
+        <dt>Dink</dt><dd>K. Soft, into their kitchen.</dd>
+        <dt>Lob</dt><dd>L. High over their heads.</dd>
+        <dt>Ultimate</dt><dd id="ultHelp">M or ULT. Fills as you hit and win points. Every player has their own ultimate.</dd>
+        <dt>Move</dt><dd>W A S D or arrows. On a phone, drag on the left side.</dd>
+      </dl>
+    </details>
+    <details class="disclosure">
+      <summary>Disclosure</summary>
+      <dl>
+        <dt>Title</dt><dd>Ultimate Pickleball Clash</dd>
+        <dt>Genre</dt><dd>Sports</dd>
+        <dt>Developer</dt><dd>Ken</dd>
+        <dt>Release Year</dt><dd>2026</dd>
+      </dl>
+      <p>For private, non-commercial use only; not for distribution, resale, or public release.</p>
+      <p>All AI-generated content was reviewed, refined, and integrated by the developer to ensure consistency with the game's artistic direction and quality standards.</p>
+    </details>
+  </div>
+</div>
+
+<div class="help pick" id="pick" role="dialog" aria-modal="true" aria-labelledby="pickTitle" hidden>
+  <div class="card">
+    <h2 id="pickTitle">Choose your player</h2>
+    <div class="count" id="pickCount"><small id="pickHint">Pick fast, or you get a random player</small><b id="pickTime">10</b></div>
+    <div class="tbar"><i id="pickBar"></i></div>
+    <div class="grid" id="pickGrid"></div>
+  </div>
+</div>
+
+<div class="help" id="pause" role="dialog" aria-modal="true" aria-labelledby="pauseTitle" hidden>
+  <div class="card result">
+    <h2 id="pauseTitle">Paused</h2>
+    <div class="final small" id="pauseScore">0 – 0</div>
+    <p id="pauseSub"></p>
+    <div class="btns stack">
+      <button type="button" class="go" id="resumeBtn">Resume</button>
+      <div class="btns">
+        <button type="button" class="ghost" id="restartBtn">Restart match</button>
+        <button type="button" class="ghost" id="quitBtn">Quit to menu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="help" id="over" role="dialog" aria-modal="true" aria-labelledby="overTitle" hidden>
+  <div class="card result">
+    <h2 id="overTitle">You win!</h2>
+    <div class="final" id="overScore">11 – 7</div>
+    <p id="overSub"></p>
+    <table class="mstats" id="overStats" aria-label="Match statistics"></table>
+    <div class="btns">
+      <button type="button" class="go" id="rematchBtn">Rematch</button>
+      <button type="button" class="ghost" id="overMenuBtn">Menu</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  /* =====================================================================
+     CHARACTER FACTORY  (copied from characters.html; keep the two in sync)
+     Units are feet. Characters face -Z. The rig:
+       root ─ rig (height from leg angles) ─┬─ hip ─ knee        (×2 legs)
+                                           └─ upper (lean + twist)
+                                                ├─ torso, head ─ hair, eyes, mouth
+                                                └─ shoulder ─ elbow (×2 arms; right holds the paddle)
+     ===================================================================== */
+  const TEAM_COLORS = { a: 0xff8a2b, b: 0xb45cff };
+
+  const CHARACTERS = [
+    { id: 'you',  name: 'YOU',  team: 'a', role: 'You · orange team',     shirt: TEAM_COLORS.a, shorts: 0x1f2a44, skin: 0xf1c7a3, hair: 'spiky',  hairColor: 0x6b4226, paddle: 0x22c7b8, marker: true },
+    { id: 'kai',  name: 'KAI',  team: 'a', role: 'Partner · orange team', shirt: TEAM_COLORS.a, shorts: 0x1f2a44, skin: 0x8d5a3b, hair: 'short',  hairColor: 0x151217, paddle: 0xffd23f },
+    { id: 'rex',  name: 'REX',  team: 'b', role: 'Rival · violet team',   shirt: TEAM_COLORS.b, shorts: 0x23193a, skin: 0xc68a5e, hair: 'quiff',  hairColor: 0x2b1d14, paddle: 0xff4f6d },
+    { id: 'juno', name: 'JUNO', team: 'b', role: 'Rival · violet team',   shirt: TEAM_COLORS.b, shorts: 0x23193a, skin: 0xffdcc2, hair: 'pony',   hairColor: 0xd9a441, paddle: 0x3fa9ff },
+  ];
+
+  // Ultimates, in roster order: player #1 has Firewall, #2 Earthquake, and so on.
+  const ULT_INFO = {
+    glass:  { name: 'Firewall',   kind: 'Boost', color: '#ff6a1f', hex: 0xff6a1f, desc: 'A wall of fire over the middle third of the net for 4 s blocks their returns.' },
+    quake:  { name: 'Earthquake', kind: 'Shot',  color: '#d9894a', hex: 0xd9894a, desc: 'Your next hit cracks their court and kicks up high at an odd angle.' },
+    mirage: { name: 'Mirage',     kind: 'Shot',  color: '#ff5fb0', hex: 0xff5fb0, desc: 'Your next hit splits into three balls; two are fakes.' },
+    wind:   { name: 'Reborn',     kind: 'Boost', color: '#7be05a', hex: 0x7be05a, desc: 'Refills your fatigue and you run 30% faster for 6 s.' },
+    hole:   { name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, desc: 'Drags both rivals toward a black hole for 1 s.' },
+    cosmo:  { name: 'Cosmo',      kind: 'Boost', color: '#ffc23d', hex: 0xffc23d, desc: 'A golden ring knocks the rivals to the baseline and sideline.' },
+    curve:  { name: 'Flaky',      kind: 'Shot',  color: '#c45cff', hex: 0xc45cff, desc: 'Your next hit bends hard sideways after the net.' },
+    gas:    { name: 'Poison',     kind: 'Boost', color: '#b44dd6', hex: 0xb44dd6, desc: 'Gasses both rivals for 3 s: 55% of their hits go wrong.' },
+    comet:  { name: 'One Shot',   kind: 'Shot',  color: '#ff7a1a', hex: 0xff7a1a, desc: 'Your next hit is a blazing 75 ft/s shot; rivals react 0.1 s late.' },
+    warp:   { name: 'Time Warp',  kind: 'Boost', color: '#4fd1c5', hex: 0x4fd1c5, desc: 'For 2.2 s the ball moves at 70% and the rivals at 45%.' },
+    frost:  { name: 'Cold Snap',  kind: 'Shot',  color: '#7fe3ff', hex: 0x7fe3ff, desc: 'A low kitchen drop that freezes the nearest rival for 1.05 s.' },
+    tide:   { name: 'High Tide',  kind: 'Boost', color: '#2fb4ff', hex: 0x2fb4ff, desc: 'Floods their court for 7 s: once they move, they cannot stop.' },
+  };
+  const ULT_ORDER = ['glass', 'quake', 'mirage', 'wind', 'hole', 'cosmo', 'curve', 'gas', 'comet', 'warp', 'frost', 'tide'];
+
+  // The 12 preset players (same looks as the character page; not likenesses).
+  // In a match, shirts and shoes switch to team colours so sides stay clear.
+  const ROSTER = [
+    ['Connor Garnett',    'Connor',     0x2f80ed, 0xf1c7a3, 'quiff',    0x5a3a22, 0xffd23f],
+    ['Jade Kawamoto',     'Jade',       0xe94f8a, 0xf3d0b0, 'pony',     0x151217, 0x3fa9ff],
+    ['Hunter Johnson',    'Hunter',     0x27ae60, 0xf5cfae, 'short',    0x8a5a2b, 0xff4f6d],
+    ['J-Dub Johnson',     'J-Dub',      0xf2994a, 0xe9b98f, 'buzz',     0x3a2a1e, 0x22c7b8],
+    ['Jorja Johnson',     'Jorja',      0x9b51e0, 0xf5d3b5, 'bun',      0x3b2416, 0xff8a2b],
+    ['Gabriel Tardio',    'Gabriel',    0xeb5757, 0xd9a47a, 'spiky',    0x1d1410, 0xdcf54a],
+    ['Anna Bright',       'Anna B.',    0x00b8a9, 0xffdcc2, 'pigtails', 0x141414, 0xb45cff],
+    ['Eric Oncins',       'Eric',       0x56ccf2, 0xe2ad84, 'mohawk',   0x3b2416, 0xff4f6d],
+    ['Dylan Frazier',     'Dylan',      0x6fcf97, 0xf1c7a3, 'curly',    0x6b4226, 0x2f80ed],
+    ['Kaitlyn Christian', 'Kaitlyn',    0xf2c94c, 0xf3cba8, 'pony',     0x8a5a2b, 0xe94f8a],
+    ['Anna Leigh Waters', 'Anna Leigh', 0xff6f91, 0xffdcc2, 'pony',     0xe8c27a, 0x27ae60],
+    ['Ben Johns',         'Ben',        0x3f51b5, 0xf1c7a3, 'short',    0x4a3020, 0xf2994a],
+  ].map(([full, short, shirt, skin, hair, hairColor, paddle], i) => ({ i, full, short, shirt, skin, hair, hairColor, paddle, ult: ULT_ORDER[i] }));
+
+  // Leg and arm segment lengths (ft). HIP = THIGH + SHIN + ankle-to-floor.
+  const THIGH = 1.05, SHIN = 1.27, ANKLE = 0.13, HIP = THIGH + SHIN + ANKLE;
+  const UPPER_ARM = 0.74, FOREARM = 0.7;
+  const HEAD_Y = 2.75, HEAD_R = 0.62;
+  const mat = (color, roughness = 0.75) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
+
+  const TORSO_PROFILE = [
+    [0.0, 0.2], [0.57, 0.22], [0.62, 0.5], [0.62, 0.95], [0.69, 1.35], [0.72, 1.62],
+    [0.69, 1.84], [0.57, 2.0], [0.38, 2.11], [0.18, 2.16], [0.0, 2.17],
+  ];
+  // Smooth a [radius, height] profile with a spline and spin it into a
+  // solid. from/to keep just one height band (for the chest stripe); grow
+  // pushes that band slightly outside the shirt so it never z-fights.
+  function latheProfile(profile, opts = {}) {
+    const curve = new THREE.SplineCurve(profile.map(([r, y]) => new THREE.Vector2(r, y)));
+    let pts = curve.getPoints(48).map((v) => new THREE.Vector2(Math.max(0, v.x), v.y));
+    if (opts.from !== undefined) pts = pts.filter((v) => v.y >= opts.from && v.y <= opts.to);
+    if (opts.grow) pts = pts.map((v) => new THREE.Vector2(v.x * opts.grow, v.y));
+    return new THREE.LatheGeometry(pts, 32);
+  }
+
+  // Extrude a side-profile shape across the foot and turn it so the profile's
+  // +u points toward the toes (-Z) and the width runs along X.
+  function sneakerPart(draw, width, bevel) {
+    const s = new THREE.Shape();
+    draw(s);
+    const g = new THREE.ExtrudeGeometry(s, {
+      depth: width, curveSegments: 8,
+      bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3,
+    });
+    g.translate(0, 0, -width / 2);
+    g.rotateY(Math.PI / 2);
+    return g;
+  }
+
+  // Shared geometry, so four characters cost little more than one.
+  const GEO = {
+    thigh: new THREE.CylinderGeometry(0.23, 0.2, THIGH, 12),
+    shin: new THREE.CylinderGeometry(0.2, 0.17, SHIN - 0.15, 12),
+    knee: new THREE.SphereGeometry(0.2, 12, 10),
+    sock: new THREE.CylinderGeometry(0.185, 0.18, 0.28, 12),
+    // Sneaker: a side-profile outline (u = toe direction, v = up) extruded
+    // across the foot with bevelled edges, so it is rounded on every side.
+    shoeUpper: sneakerPart((s) => {
+      s.moveTo(-0.27, 0);
+      s.lineTo(0.3, 0);
+      s.quadraticCurveTo(0.44, 0, 0.44, 0.1);    // rounded toe
+      s.quadraticCurveTo(0.43, 0.2, 0.25, 0.22); // toe box slopes up
+      s.lineTo(0.06, 0.3);                       // laces up to the ankle
+      s.lineTo(-0.19, 0.32);                     // collar
+      s.quadraticCurveTo(-0.31, 0.3, -0.31, 0.15); // curved heel
+      s.quadraticCurveTo(-0.31, 0, -0.27, 0);
+    }, 0.28, 0.045),
+    shoeSole: sneakerPart((s) => {
+      s.moveTo(-0.27, 0);
+      s.lineTo(0.39, 0);
+      s.quadraticCurveTo(0.46, 0, 0.46, 0.04);
+      s.quadraticCurveTo(0.46, 0.08, 0.39, 0.08);
+      s.lineTo(-0.27, 0.08);
+      s.quadraticCurveTo(-0.34, 0.08, -0.34, 0.04);
+      s.quadraticCurveTo(-0.34, 0, -0.27, 0);
+    }, 0.31, 0.03),
+    // Torso and shorts are lathed from smooth side profiles (radius, height
+    // in upper-body space): waist taper, fuller chest, shoulders that round
+    // over into the neck. See latheProfile() below.
+    shorts: latheProfile([[0.0, -0.27], [0.3, -0.26], [0.55, -0.23], [0.64, -0.1], [0.66, 0.15], [0.64, 0.42], [0.6, 0.56]]),
+    torso: latheProfile(TORSO_PROFILE),
+    stripe: latheProfile(TORSO_PROFILE, { from: 1.3, to: 1.46, grow: 1.025 }),
+    collar: new THREE.TorusGeometry(0.24, 0.05, 8, 24),
+    sleeve: new THREE.CylinderGeometry(0.195, 0.175, 0.38, 14),
+    neck: new THREE.CylinderGeometry(0.2, 0.22, 0.32, 10),
+    head: new THREE.SphereGeometry(HEAD_R, 24, 18),
+    eye: new THREE.SphereGeometry(0.12, 14, 10),
+    shine: new THREE.SphereGeometry(0.038, 8, 6),
+    mouth: new THREE.TorusGeometry(0.14, 0.03, 6, 16, Math.PI),
+    hairCap: new THREE.SphereGeometry(HEAD_R + 0.05, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.56),
+    blob: new THREE.SphereGeometry(0.3, 12, 10),
+    shoulder: new THREE.SphereGeometry(0.21, 16, 12),
+    upperArm: new THREE.CylinderGeometry(0.17, 0.15, UPPER_ARM, 10),
+    elbow: new THREE.SphereGeometry(0.15, 10, 8),
+    forearm: new THREE.CylinderGeometry(0.15, 0.13, FOREARM, 10),
+    hand: new THREE.SphereGeometry(0.17, 10, 8),
+    grip: new THREE.CylinderGeometry(0.075, 0.07, 0.52, 8),
+    face: (() => {
+      const w = 0.8, h = 0.96, r = 0.2, s = new THREE.Shape();
+      s.moveTo(-w / 2 + r, -h / 2);
+      s.lineTo(w / 2 - r, -h / 2); s.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+      s.lineTo(w / 2, h / 2 - r);  s.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+      s.lineTo(-w / 2 + r, h / 2); s.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+      s.lineTo(-w / 2, -h / 2 + r); s.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+      const g = new THREE.ExtrudeGeometry(s, { depth: 0.07, bevelEnabled: false, curveSegments: 6 });
+      g.translate(0, 0, -0.035);
+      return g;
+    })(),
+    marker: new THREE.ConeGeometry(0.34, 0.75, 4),
+    buzz: new THREE.SphereGeometry(HEAD_R + 0.035, 24, 9, 0, Math.PI * 2, 0, Math.PI * 0.5),
+    spike: new THREE.ConeGeometry(0.13, 0.42, 8),
+  };
+
+  /* ---------- hairstyles ----------
+     Each builder adds meshes to the head's hair group. Head-local space:
+     head centre at the origin, radius HEAD_R, face toward -Z. */
+  const UP = new THREE.Vector3(0, 1, 0);
+  function part(g, geo, m, pos, scale, rot) {
+    const o = new THREE.Mesh(geo, m);
+    o.position.set(pos[0], pos[1], pos[2]);
+    if (scale) o.scale.set(scale[0], scale[1], scale[2]);
+    if (rot) o.rotation.set(rot[0], rot[1], rot[2]);
+    g.add(o);
+    return o;
+  }
+  // A direction on the head: tilt = angle down from the crown, turn = angle
+  // around the head (0 = back of head, PI = face).
+  const onHead = (tilt, turn) => new THREE.Vector3(Math.sin(tilt) * Math.sin(turn), Math.cos(tilt), Math.sin(tilt) * Math.cos(turn));
+  const cap = (g, m, s = 1) => part(g, GEO.hairCap, m, [0, 0.02, 0.04], [s, s, s], [0.42, 0, 0]);
+
+  const HAIR = {
+    short:  { label: 'Short', build: (g, m) => cap(g, m, 1.05) },
+    buzz:   { label: 'Buzz cut', build: (g, m) => part(g, GEO.buzz, m, [0, 0, 0.02], null, [0.5, 0, 0]) },
+    quiff:  { label: 'Quiff', build: (g, m) => {
+      cap(g, m);
+      part(g, GEO.blob, m, [0, 0.5, -0.4], [1.35, 0.5, 0.85], [-0.45, 0, 0]);
+    } },
+    spiky:  { label: 'Spiky', build: (g, m) => {
+      cap(g, m);
+      const spots = [[0, 0], [0.5, 0], [0.5, 1.26], [0.5, 2.51], [0.5, 3.77], [0.5, 5.03], [0.95, 0.6], [0.95, 5.68], [0.95, 0]];
+      for (const [tilt, turn] of spots) {
+        const dir = onHead(tilt, turn);
+        const s = part(g, GEO.spike, m, dir.clone().multiplyScalar(HEAD_R + 0.14).toArray());
+        s.quaternion.setFromUnitVectors(UP, dir);
+      }
+    } },
+    mohawk: { label: 'Mohawk', build: (g, m) => {
+      for (let i = 0; i < 6; i++) {
+        const a = -0.75 + i * 0.32; // front (-) to back (+)
+        part(g, GEO.blob, m, [0, Math.cos(a) * (HEAD_R + 0.1), Math.sin(a) * (HEAD_R + 0.1)], [0.32, 0.8, 0.55], [a, 0, 0]);
+      }
+    } },
+    curly:  { label: 'Curly', build: (g, m) => {
+      cap(g, m, 0.98);
+      for (const tilt of [0.2, 0.62, 1.05]) {
+        const n = tilt < 0.3 ? 3 : tilt < 0.8 ? 7 : 8;
+        for (let i = 0; i < n; i++) {
+          const turn = (i / n) * Math.PI * 2 + tilt;
+          const dir = onHead(tilt, turn);
+          if (tilt > 0.8 && dir.z < -0.15) continue; // keep the face clear
+          part(g, GEO.blob, m, dir.multiplyScalar(HEAD_R + 0.04).toArray(), [0.62, 0.62, 0.62]);
+        }
+      }
+    } },
+    afro:   { label: 'Afro', build: (g, m) => part(g, GEO.blob, m, [0, 0.38, 0.26], [2.9, 2.55, 2.7]) },
+    bun:    { label: 'Top bun', build: (g, m) => {
+      cap(g, m);
+      part(g, GEO.blob, m, [0, 0.66, 0.22], [0.85, 0.8, 0.85]);
+    } },
+    pony:   { label: 'Ponytail', build: (g, m) => {
+      cap(g, m);
+      part(g, GEO.blob, m, [0, 0.12, 0.66], [0.9, 0.9, 0.9]);
+      part(g, GEO.blob, m, [0, -0.25, 0.78], [0.7, 1.3, 0.7]);
+    } },
+    pigtails: { label: 'Pigtails', build: (g, m) => {
+      cap(g, m);
+      part(g, GEO.blob, m, [-0.68, -0.12, 0.16], [0.55, 1.15, 0.55], [0, 0, -0.3]);
+      part(g, GEO.blob, m, [0.68, -0.12, 0.16], [0.55, 1.15, 0.55], [0, 0, 0.3]);
+    } },
+  };
+  const HAIR_STYLES = Object.keys(HAIR);
+
+  function createCharacter(def) {
+    const M = {
+      skin: mat(def.skin, 0.8), shirt: mat(def.shirt, 0.7), shorts: mat(def.shorts, 0.85),
+      shoe: mat(TEAM_COLORS[def.team], 0.55), sole: mat(0xf2f4f8, 0.8), sock: mat(0xffffff, 0.9),
+      hair: new THREE.MeshStandardMaterial({ color: def.hairColor, roughness: 0.9, side: THREE.DoubleSide }),
+      eye: mat(0x14141c, 0.25), shine: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+      mouth: mat(0x5a1e24, 0.6), paddle: mat(def.paddle, 0.45), grip: mat(0x23232b, 0.95),
+      stripe: mat(0xffffff, 0.7),
+    };
+    const mesh = (geo, m, x = 0, y = 0, z = 0) => {
+      const o = new THREE.Mesh(geo, m);
+      o.position.set(x, y, z);
+      o.castShadow = true;
+      return o;
+    };
+    const joint = (parent, x, y, z) => {
+      const g = new THREE.Group();
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    };
+
+    const root = new THREE.Group();
+    const rig = new THREE.Group();
+    root.add(rig);
+
+    // Legs: hip joint -> thigh -> knee joint -> shin + foot.
+    const makeLeg = (x) => {
+      const hip = joint(rig, x, HIP, 0);
+      hip.add(mesh(GEO.thigh, M.skin, 0, -THIGH / 2, 0));
+      const knee = joint(hip, 0, -THIGH, 0);
+      knee.add(mesh(GEO.knee, M.skin));
+      knee.add(mesh(GEO.shin, M.skin, 0, -(SHIN - 0.15) / 2, 0));
+      knee.add(mesh(GEO.sock, M.sock, 0, -SHIN + 0.2, 0));
+      // Shoe origin sits on the floor under the ankle; sole first, upper on it.
+      const shoe = joint(knee, 0, -SHIN - ANKLE, -0.06);
+      shoe.add(mesh(GEO.shoeSole, M.sole, 0, 0.03, 0));
+      shoe.add(mesh(GEO.shoeUpper, M.shoe, 0, 0.075, 0));
+      return { hip, knee };
+    };
+    const legL = makeLeg(-0.3);
+    const legR = makeLeg(0.3);
+
+    // Upper body pivots at the hip for lean and shoulder twist.
+    const upper = joint(rig, 0, HIP, 0);
+    // Slightly flattened front-to-back so the body reads as a chest, not a can.
+    const DEPTH = 0.8;
+    const shorts = mesh(GEO.shorts, M.shorts);
+    shorts.scale.z = 0.86;
+    upper.add(shorts);
+    const torso = mesh(GEO.torso, M.shirt);
+    torso.scale.z = DEPTH;
+    upper.add(torso);
+    const stripe = mesh(GEO.stripe, M.stripe);
+    stripe.scale.z = DEPTH;
+    upper.add(stripe);
+    upper.add(mesh(GEO.neck, M.skin, 0, 2.2, 0));
+    const collar = mesh(GEO.collar, M.stripe, 0, 2.1, 0);
+    collar.rotation.x = Math.PI / 2;
+    collar.scale.set(1.15, 1.0, 1);
+    upper.add(collar);
+
+    // Head: skin sphere, big round eyes with a highlight, a smile.
+    const head = joint(upper, 0, HEAD_Y, 0);
+    head.add(mesh(GEO.head, M.skin));
+    for (const sx of [-1, 1]) {
+      const eye = mesh(GEO.eye, M.eye, sx * 0.23, 0.08, -0.53);
+      eye.scale.set(0.9, 1.15, 0.55);
+      head.add(eye);
+      const shine = new THREE.Mesh(GEO.shine, M.shine);
+      shine.position.set(sx * 0.23 + 0.04, 0.14, -0.6);
+      head.add(shine);
+    }
+    const mouth = mesh(GEO.mouth, M.mouth, 0, -0.2, -0.575);
+    mouth.rotation.set(-0.35, 0, Math.PI);
+    mouth.scale.set(1, 0.75, 1);
+    head.add(mouth);
+
+    // Hair lives in its own group so the style can be swapped at runtime.
+    const hair = joint(head, 0, 0, 0);
+    function setHair(style) {
+      while (hair.children.length) hair.remove(hair.children[0]);
+      (HAIR[style] || HAIR.short).build(hair, M.hair);
+      hair.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      def.hair = HAIR[style] ? style : 'short';
+    }
+    setHair(def.hair);
+
+    // Arms: shoulder (rotation order YXZ: yaw applied last) -> upper arm ->
+    // elbow (bends on X) -> forearm -> hand. The paddle rides the right hand.
+    const makeArm = (x) => {
+      const shoulder = joint(upper, x, 1.86, 0);
+      shoulder.rotation.order = 'YXZ';
+      shoulder.add(mesh(GEO.shoulder, M.shirt));
+      shoulder.add(mesh(GEO.sleeve, M.shirt, 0, -0.2, 0));
+      shoulder.add(mesh(GEO.upperArm, M.skin, 0, -UPPER_ARM / 2, 0));
+      const elbow = joint(shoulder, 0, -UPPER_ARM, 0);
+      elbow.add(mesh(GEO.elbow, M.skin));
+      elbow.add(mesh(GEO.forearm, M.skin, 0, -FOREARM / 2, 0));
+      elbow.add(mesh(GEO.hand, M.skin, 0, -FOREARM - 0.05, 0));
+      return { shoulder, elbow };
+    };
+    const armL = makeArm(-0.86);
+    const armR = makeArm(0.86);
+
+    const paddle = joint(armR.elbow, 0, -FOREARM - 0.08, 0);
+    paddle.add(mesh(GEO.grip, M.grip, 0, -0.2, 0));
+    paddle.add(mesh(GEO.face, M.paddle, 0, -0.9, 0));
+
+    let marker = null;
+    if (def.marker) {
+      marker = new THREE.Mesh(GEO.marker, new THREE.MeshStandardMaterial({
+        color: TEAM_COLORS.a, emissive: TEAM_COLORS.a, emissiveIntensity: 0.45, roughness: 0.5,
+      }));
+      marker.rotation.x = Math.PI;
+      marker.position.y = 6.75;
+      root.add(marker);
+    }
+
+    /* Pose channels (radians). Positive hip = thigh forward, negative knee =
+       shin folds back. Positive elbow = forearm folds forward. Arms: x lifts
+       forward, y swings across the body (forehand = negative to positive),
+       z lifts out to the side. Channels blend toward a target each frame. */
+    const cur = {
+      lean: -0.18, twist: 0, bounce: 0,
+      hipL: 0.35, kneeL: -0.6, hipR: 0.35, kneeR: -0.6,
+      lx: 0.3, ly: 0, lz: -0.3, elL: 1.1,
+      rx: 0.3, ry: -0.3, rz: 0.3, elR: 1.0,
+      roll: 0, // paddle roll about the arm: PI/2 turns the face to lead the swing
+    };
+
+    // Overhead smash, 1.6 s loop, as keyframes (p = 0..1 through the loop).
+    // Load into the trophy pose (side-on, free hand pointing up, paddle
+    // dropped behind the head), drive up and uncoil so the elbow snaps
+    // straight at contact high in front, then pull down across the body.
+    const READY_POSE = {
+      lean: -0.18, twist: 0, bounce: 0,
+      hipL: 0.35, kneeL: -0.6, hipR: 0.35, kneeR: -0.6,
+      lx: 0.3, ly: 0, lz: -0.3, elL: 1.1,
+      rx: 0.3, ry: -0.3, rz: 0.3, elR: 1.0, roll: 0,
+    };
+    const OVERHEAD = [
+      { p: 0, pose: READY_POSE },
+      { p: 0.32, pose: { lean: 0.08, twist: -0.6, bounce: 0, hipL: 0.55, kneeL: -1.0, hipR: 0.3, kneeR: -0.8,
+        lx: 2.7, ly: 0, lz: -0.15, elL: 0.15, rx: 2.5, ry: 0, rz: 0.35, elR: 2.0, roll: 0 } },
+      { p: 0.4, pose: { lean: 0.06, twist: -0.62, bounce: 0, hipL: 0.58, kneeL: -1.05, hipR: 0.32, kneeR: -0.85,
+        lx: 2.75, ly: 0, lz: -0.15, elL: 0.15, rx: 2.5, ry: 0, rz: 0.35, elR: 2.05, roll: 0 } },
+      { p: 0.47, pose: { lean: -0.05, twist: 0.05, bounce: 0.12, hipL: 0.15, kneeL: -0.2, hipR: 0.1, kneeR: -0.2,
+        lx: 1.0, ly: 0.3, lz: -0.3, elL: 1.3, rx: 2.9, ry: 0, rz: 0.2, elR: 0.1, roll: 0 } },
+      { p: 0.62, pose: { lean: -0.4, twist: 0.5, bounce: 0, hipL: 0.4, kneeL: -0.6, hipR: 0.2, kneeR: -0.5,
+        lx: 0.5, ly: 0.4, lz: -0.4, elL: 1.2, rx: 0.8, ry: 0.6, rz: 0.1, elR: 0.4, roll: 0 } },
+      { p: 1, pose: READY_POSE },
+    ];
+    function keyed(frames, p) {
+      let i = 0;
+      while (i < frames.length - 2 && p >= frames[i + 1].p) i++;
+      const a = frames[i], b = frames[i + 1];
+      let k = Math.min(1, Math.max(0, (p - a.p) / (b.p - a.p)));
+      k = k * k * (3 - 2 * k); // smoothstep
+      const out = {};
+      for (const key in a.pose) out[key] = a.pose[key] + (b.pose[key] - a.pose[key]) * k;
+      return out;
+    }
+
+    function targetPose(mode, t) {
+      if (mode === 'overhead') return keyed(OVERHEAD, (t % 1.6) / 1.6);
+      if (mode === 'run') {
+        const f = t * 9.5, sL = Math.sin(f), cL = Math.cos(f);
+        return {
+          lean: -0.3, twist: sL * 0.12, bounce: Math.abs(sL) * 0.12,
+          // Knee folds most while the leg swings forward from behind.
+          hipL: 0.65 * sL,  kneeL: -0.25 - 1.1 * Math.max(0, cL),
+          hipR: -0.65 * sL, kneeR: -0.25 - 1.1 * Math.max(0, -cL),
+          lx: 0.1 - 0.75 * sL, ly: 0, lz: -0.2, elL: 1.45,
+          rx: 0.25 + 0.55 * sL, ry: -0.35, rz: 0.3, elR: 1.25, roll: 0,
+        };
+      }
+      if (mode === 'backhand') {
+        // Flat one-handed backhand, 1.5 s loop. Mirror of the forehand: the
+        // shoulders coil left and the paddle goes back past the left hip
+        // with a bent elbow (left hand guiding it), then the arm extends and
+        // sweeps left-to-right on a level path. Contact is out in front on
+        // the left, where the rolled face looks straight at the net.
+        const p = (t % 1.5) / 1.5;
+        const ease = (k) => 1 - Math.pow(1 - k, 3);
+        let ry, twist, elR, knee, lx, ly, lz, elL;
+        if (p < 0.3) {            // coil: paddle back to the left hip
+          const k = ease(p / 0.3);
+          ry = 0.4 + 0.2 * k; twist = 1.1 * k; elR = 0.6 - 0.25 * k; knee = -0.6 - 0.25 * k;
+          lx = 0.6 + 0.3 * k; ly = 0.3 * k; lz = -0.25 + 0.15 * k; elL = 1.0 + 0.3 * k;
+        } else if (p < 0.42) {    // uncoil: level sweep, elbow straightens
+          const k = ease((p - 0.3) / 0.12);
+          ry = 0.6 - 0.6 * k; twist = 1.1 - 1.3 * k; elR = 0.35 - 0.25 * Math.min(1, k * 2); knee = -0.85 + 0.3 * k;
+          lx = 0.9 - 1.2 * k; ly = 0.3 - 0.3 * k; lz = -0.1 - 0.5 * k; elL = 1.3 - 1.0 * k;
+        } else {                  // hold the finish, then back to ready
+          const k = ease(Math.min(1, (p - 0.42) / 0.5));
+          ry = 0.4 * k; twist = -0.2 * (1 - k); elR = 0.1 + 0.5 * k; knee = -0.55 - 0.05 * k;
+          lx = -0.3 + 0.9 * k; ly = 0; lz = -0.6 + 0.35 * k; elL = 0.3 + 0.7 * k;
+        }
+        return {
+          lean: -0.2, twist, bounce: 0,
+          // closed stance: right foot steps across toward the ball
+          hipL: 0.15, kneeL: knee + 0.2, hipR: 0.5, kneeR: knee - 0.15,
+          lx, ly, lz, elL,
+          rx: 1.0, ry, rz: 0, elR, roll: Math.PI / 2,
+        };
+      }
+      if (mode === 'swing') {
+        // Flat forehand, 1.5 s loop. The arm sweeps around the body on a
+        // level, waist-high path (fixed tilt, no side lift), and the paddle is
+        // rolled so its face stays upright and leads the swing. Contact is
+        // out to the side, where the face looks straight at the net.
+        const p = (t % 1.5) / 1.5;
+        const ease = (k) => 1 - Math.pow(1 - k, 3);
+        const READY = -0.9, BACK = -2.5, THROUGH = 0.5;
+        let ry, twist, elR, knee;
+        if (p < 0.3) {            // take the paddle straight back
+          const k = ease(p / 0.3);
+          ry = READY + (BACK - READY) * k; twist = -0.6 * k; elR = 0.5 + 0.1 * k; knee = -0.6 - 0.25 * k;
+        } else if (p < 0.42) {    // sweep through level, arm extending
+          const k = ease((p - 0.3) / 0.12);
+          ry = BACK + (THROUGH - BACK) * k; twist = -0.6 + 1.05 * k; elR = 0.6 - 0.45 * k; knee = -0.85 + 0.3 * k;
+        } else {                  // finish across the body, settle to ready
+          const k = ease(Math.min(1, (p - 0.42) / 0.5));
+          ry = THROUGH + (READY - THROUGH) * k; twist = 0.45 * (1 - k); elR = 0.15 + 0.35 * k; knee = -0.55 - 0.05 * k;
+        }
+        return {
+          lean: -0.2, twist, bounce: 0,
+          hipL: 0.5, kneeL: knee - 0.15, hipR: 0.15, kneeR: knee + 0.2,
+          lx: 0.9, ly: 0.4, lz: -0.35, elL: 0.6,
+          rx: 1.0, ry, rz: 0, elR, roll: Math.PI / 2,
+        };
+      }
+      // idle: athletic ready stance, knees soft, paddle up in front
+      const b = Math.sin(t * 2.2);
+      return {
+        lean: -0.18, twist: Math.sin(t * 0.9) * 0.05, bounce: 0,
+        hipL: 0.35 + b * 0.04, kneeL: -0.6 - b * 0.08,
+        hipR: 0.35 + b * 0.04, kneeR: -0.6 - b * 0.08,
+        lx: 0.3, ly: 0, lz: -0.3, elL: 1.1 + b * 0.05,
+        rx: 0.3, ry: -0.3, rz: 0.3, elR: 1.0 + b * 0.05, roll: 0,
+      };
+    }
+
+    // Height of the hip above the floor for a given thigh/knee angle, so a
+    // crouch lowers the body and the feet stay planted.
+    const legHeight = (hip, knee) => THIGH * Math.cos(hip) + SHIN * Math.cos(hip + knee) + ANKLE;
+
+    function update(mode, t, dt) {
+      const tgt = targetPose(mode, t);
+      const k = 1 - Math.exp(-dt * (mode === 'swing' || mode === 'backhand' || mode === 'overhead' ? 30 : 12));
+      for (const key in cur) cur[key] += (tgt[key] - cur[key]) * k;
+
+      legL.hip.rotation.x = cur.hipL;  legL.knee.rotation.x = cur.kneeL;
+      legR.hip.rotation.x = cur.hipR;  legR.knee.rotation.x = cur.kneeR;
+      const stand = Math.max(legHeight(cur.hipL, cur.kneeL), legHeight(cur.hipR, cur.kneeR));
+      rig.position.y = stand - HIP + cur.bounce;
+
+      upper.rotation.x = cur.lean;
+      upper.rotation.y = cur.twist;
+      head.rotation.x = -cur.lean * 0.7; // keep eyes level when leaning
+      armL.shoulder.rotation.set(cur.lx, cur.ly, cur.lz);
+      armL.elbow.rotation.x = cur.elL;
+      armR.shoulder.rotation.set(cur.rx, cur.ry, cur.rz);
+      armR.elbow.rotation.x = cur.elR;
+      paddle.rotation.y = cur.roll;
+
+      if (marker) {
+        marker.position.y = 6.75 + Math.sin(t * 3) * 0.15;
+        marker.rotation.y = t * 1.5;
+      }
+    }
+
+    return { def, root, update, setHair };
+  }
+
+  window.KitchenClash = Object.assign(window.KitchenClash || {}, { createCharacter, CHARACTERS, TEAM_COLORS, HAIR, HAIR_STYLES });
+
+  /* =====================================================================
+     COURT  (feet; net on z = 0, your team plays the +Z half)
+     ===================================================================== */
+  const COURT = {
+    halfW: 10,        // 20 ft wide
+    halfL: 22,        // 44 ft long
+    kitchen: 7,       // non-volley zone depth from the net
+    line: 2 / 12,     // 2-inch lines
+    netCenter: 34 / 12,
+    netPost: 36 / 12,
+    postX: 11,        // posts stand 1 ft outside each sideline
+  };
+  const AREA = { halfW: 17, halfL: 32 }; // fenced play area
+
+  const isTouch = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
+
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.75 : 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  {
+    const c = document.createElement('canvas');
+    c.width = 4; c.height = 256;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#4f9fea');
+    grad.addColorStop(0.55, '#a9d6ff');
+    grad.addColorStop(1, '#e6f3ff');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 4, 256);
+    scene.background = new THREE.CanvasTexture(c);
+  }
+  scene.fog = new THREE.Fog(0xcde6fb, 120, 260);
+
+  scene.add(new THREE.HemisphereLight(0xe6f3ff, 0x3f5f45, 0.72));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(-22, 48, 26);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
+  Object.assign(sun.shadow.camera, { left: -38, right: 38, top: 40, bottom: -40, near: 1, far: 140 });
+  sun.shadow.bias = -0.0005;
+  scene.add(sun);
+  scene.add(sun.target);
+
+  const stdMat = (color, roughness = 0.85) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
+
+  function flat(w, l, color, y, x = 0, z = 0) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), stdMat(color, 0.92));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, y, z);
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
+  // Ground, apron, playing surface, kitchens.
+  flat(600, 600, 0x5d8f4a, -0.05);
+  flat(AREA.halfW * 2, AREA.halfL * 2, 0x1f6b57, 0);
+  flat(COURT.halfW * 2, COURT.halfL * 2, 0x2a56c6, 0.01);
+  flat(COURT.halfW * 2, COURT.kitchen, 0x58a6ea, 0.015, 0, COURT.kitchen / 2);
+  flat(COURT.halfW * 2, COURT.kitchen, 0x58a6ea, 0.015, 0, -COURT.kitchen / 2);
+
+  // Lines (2 in wide). Lines count as in, so they sit on the court's edges.
+  {
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
+    const L = COURT.line, W = COURT.halfW, H = COURT.halfL, K = COURT.kitchen;
+    const strip = (w, l, x, z) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), lineMat);
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(x, 0.02, z);
+      m.receiveShadow = true;
+      scene.add(m);
+    };
+    for (const s of [-1, 1]) {
+      strip(L, H * 2, s * (W - L / 2), 0);          // sidelines
+      strip(W * 2, L, 0, s * (H - L / 2));          // baselines
+      strip(W * 2, L, 0, s * (K - L / 2));          // kitchen (non-volley) lines
+      strip(L, H - K, 0, s * (K + (H - K) / 2));    // centrelines, kitchen line to baseline
+    }
+  }
+
+  // Net: sagging mesh, white tape along the top, centre strap, two posts.
+  {
+    const netH = (x) => COURT.netCenter + (COURT.netPost - COURT.netCenter) * Math.pow(x / COURT.postX, 2);
+    const geo = new THREE.PlaneGeometry(COURT.postX * 2, 1, 66, 1);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      pos.setY(i, pos.getY(i) > 0 ? netH(x) : 0.15);
+    }
+    geo.computeVertexNormals();
+    const tc = document.createElement('canvas');
+    tc.width = 64; tc.height = 64;
+    const g = tc.getContext('2d');
+    g.strokeStyle = 'rgba(20, 22, 30, 0.95)';
+    g.lineWidth = 6;
+    g.strokeRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(tc);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(COURT.postX * 2 / 0.25, COURT.netCenter / 0.25);
+    tex.anisotropy = 4;
+    const net = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      map: tex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.9,
+    }));
+    net.castShadow = true;
+    scene.add(net);
+
+    const top = [];
+    for (let i = 0; i <= 24; i++) {
+      const x = -COURT.postX + (i / 24) * COURT.postX * 2;
+      top.push(new THREE.Vector3(x, netH(x), 0));
+    }
+    const tape = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(top), 48, 0.07, 6, false), stdMat(0xffffff, 0.6));
+    tape.castShadow = true;
+    scene.add(tape);
+
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.17, COURT.netCenter, 0.05), stdMat(0xffffff, 0.6));
+    strap.position.y = COURT.netCenter / 2;
+    scene.add(strap);
+
+    const postGeo = new THREE.CylinderGeometry(0.12, 0.14, COURT.netPost + 0.15, 12);
+    for (const s of [-1, 1]) {
+      const post = new THREE.Mesh(postGeo, stdMat(0x23262e, 0.5));
+      post.position.set(s * COURT.postX, (COURT.netPost + 0.15) / 2, 0);
+      post.castShadow = true;
+      scene.add(post);
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.12, 16), stdMat(0x23262e, 0.5));
+      foot.position.set(s * COURT.postX, 0.06, 0);
+      scene.add(foot);
+    }
+  }
+
+  // Fences: tall chain-link on the sides, low windscreens behind the baselines
+  // so the camera behind your baseline sees over them.
+  {
+    const lc = document.createElement('canvas');
+    lc.width = 32; lc.height = 32;
+    const g = lc.getContext('2d');
+    g.strokeStyle = 'rgba(40, 52, 58, 0.9)';
+    g.lineWidth = 2.2;
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(32, 32); g.moveTo(32, 0); g.lineTo(0, 32); g.stroke();
+    const tex = new THREE.CanvasTexture(lc);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    const FENCE_H = 10;
+    const chain = (len) => {
+      const t = tex.clone();
+      t.needsUpdate = true;
+      t.repeat.set(len / 1.4, FENCE_H / 1.4);
+      return new THREE.MeshStandardMaterial({ map: t, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.8 });
+    };
+    const poleMat = stdMat(0x2b3a33, 0.5);
+    const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, FENCE_H, 8);
+    const railGeo = new THREE.CylinderGeometry(0.08, 0.08, 1, 8);
+    for (const s of [-1, 1]) {
+      const len = AREA.halfL * 2;
+      const side = new THREE.Mesh(new THREE.PlaneGeometry(len, FENCE_H), chain(len));
+      side.rotation.y = Math.PI / 2;
+      side.position.set(s * AREA.halfW, FENCE_H / 2, 0);
+      scene.add(side);
+      for (let z = -AREA.halfL; z <= AREA.halfL; z += 8) {
+        const p = new THREE.Mesh(poleGeo, poleMat);
+        p.position.set(s * AREA.halfW, FENCE_H / 2, z);
+        p.castShadow = true;
+        scene.add(p);
+      }
+      const rail = new THREE.Mesh(railGeo, poleMat);
+      rail.scale.y = len;
+      rail.rotation.x = Math.PI / 2;
+      rail.position.set(s * AREA.halfW, FENCE_H, 0);
+      scene.add(rail);
+
+      const screen = new THREE.Mesh(new THREE.BoxGeometry(AREA.halfW * 2, 3.2, 0.15), stdMat(0x17463a, 0.9));
+      screen.position.set(0, 1.6, s * AREA.halfL);
+      screen.receiveShadow = true;
+      scene.add(screen);
+    }
+  }
+
+  // Sponsor banners tied to the far-end fence, facing the court.
+  {
+    const BANNERS = [
+      { text: 'SD Pickleball', bg: '#13294b', fg: '#dcf54a', edge: '#dcf54a', x: -1 },
+      { text: 'HCW Rec Club', bg: '#ffffff', fg: '#c8102e', edge: '#1f7a3a', x: 1 },
+    ];
+    const W = 14, H = 2.6;   // feet
+    BANNERS.forEach((b) => {
+      const c = document.createElement('canvas');
+      c.width = 1024; c.height = Math.round(1024 * H / W);
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = 4;
+      const draw = () => {
+        const g = c.getContext('2d'), w = c.width, h = c.height;
+        g.fillStyle = b.bg; g.fillRect(0, 0, w, h);
+        g.strokeStyle = b.edge; g.lineWidth = 14; g.strokeRect(12, 12, w - 24, h - 24);
+        // grommets in the corners and along the top and bottom
+        g.fillStyle = '#c9ced8';
+        for (const gx of [34, w / 2, w - 34]) for (const gy of [34, h - 34]) { g.beginPath(); g.arc(gx, gy, 8, 0, Math.PI * 2); g.fill(); }
+        // a pickleball beside the name
+        const r = h * 0.24, bx = w * 0.13, by = h / 2;
+        g.fillStyle = '#dcf54a'; g.beginPath(); g.arc(bx, by, r, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 3; g.stroke();
+        g.fillStyle = 'rgba(0,0,0,0.35)';
+        for (const [dx, dy] of [[0, 0], [-0.45, -0.35], [0.45, -0.35], [-0.45, 0.4], [0.45, 0.4], [0, -0.7], [0, 0.72]]) {
+          g.beginPath(); g.arc(bx + dx * r, by + dy * r, r * 0.11, 0, Math.PI * 2); g.fill();
+        }
+        g.fillStyle = b.fg;
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        let size = h * 0.56;
+        const font = (s) => `400 ${s}px "Lilita One", "Arial Black", sans-serif`;
+        g.font = font(size);
+        while (g.measureText(b.text.toUpperCase()).width > w * 0.66 && size > 20) { size -= 4; g.font = font(size); }
+        g.fillText(b.text.toUpperCase(), w * 0.58, h / 2 + size * 0.04);
+        tex.needsUpdate = true;
+      };
+      draw();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);   // redraw once the display font loads
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, side: THREE.DoubleSide }));
+      // On the far-end fence behind the rivals, facing the camera.
+      m.position.set(b.x * 8, 1.65, -AREA.halfL + 0.1);
+      m.receiveShadow = true;
+      scene.add(m);
+    });
+  }
+
+  // Bleachers with a crowd, both long sides.
+  const crowd = (() => {
+    const seatMat = stdMat(0x9aa4b5, 0.7);
+    const spots = [];
+    for (const s of [-1, 1]) {
+      for (let row = 0; row < 4; row++) {
+        const x = s * (21 + row * 2.4), h = 1.1 + row * 1.15;
+        const tier = new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 48), seatMat);
+        tier.position.set(x, h / 2, 0);
+        tier.receiveShadow = true;
+        tier.castShadow = true;
+        scene.add(tier);
+        for (let z = -22.5; z <= 22.5; z += 2.1) {
+          if (Math.random() < 0.3) continue;
+          spots.push({ x: x + (Math.random() - 0.5) * 0.4, y: h, z: z + (Math.random() - 0.5) * 0.5, phase: Math.random() * 6.28 });
+        }
+      }
+    }
+    const shirts = [0xe94f4f, 0xf2b134, 0x3fa9ff, 0x2fbf71, 0xffffff, 0x8458d8, 0xff8a2b, 0x1f2a44, 0xf06ab0];
+    const skins = [0xf1c7a3, 0x8d5a3b, 0xc68a5e, 0xffdcc2, 0x5a3825, 0xe0ac7e];
+    const body = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.42, 0.5, 1.7, 8), stdMat(0xffffff, 0.8), spots.length);
+    const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.36, 10, 8), stdMat(0xffffff, 0.8), spots.length);
+    const col = new THREE.Color();
+    spots.forEach((p, i) => {
+      body.setColorAt(i, col.setHex(shirts[i % shirts.length]));
+      head.setColorAt(i, col.setHex(skins[(i * 7) % skins.length]));
+    });
+    body.castShadow = true;
+    scene.add(body, head);
+    const m = new THREE.Matrix4();
+    return {
+      update(t, excite = 0) {
+        spots.forEach((p, i) => {
+          // Idle sway, plus jumping when your team wins a point.
+          const bob = Math.max(0, Math.sin(t * 1.3 + p.phase)) * 0.06 +
+            Math.min(1, excite) * Math.abs(Math.sin(t * 9 + p.phase * 3)) * 0.9;
+          m.makeTranslation(p.x, p.y + 0.85 + bob, p.z);
+          body.setMatrixAt(i, m);
+          m.makeTranslation(p.x, p.y + 2.05 + bob, p.z);
+          head.setMatrixAt(i, m);
+        });
+        body.instanceMatrix.needsUpdate = true;
+        head.instanceMatrix.needsUpdate = true;
+      },
+    };
+  })();
+
+  // Light poles at the corners, and a ring of simple trees in the distance.
+  {
+    const poleMat = stdMat(0x3a4150, 0.5);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 30, 10), poleMat);
+      pole.position.set(sx * 19, 15, sz * 34);
+      pole.castShadow = true;
+      scene.add(pole);
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.6, 0.8), stdMat(0xe8edf5, 0.4));
+      lamp.position.set(sx * 19, 30.5, sz * 34 - sz * 0.6);
+      lamp.lookAt(0, 0, 0);
+      scene.add(lamp);
+    }
+    const n = 46;
+    const leaves = new THREE.InstancedMesh(new THREE.ConeGeometry(4.2, 11, 8), stdMat(0x2f6b3c, 0.9), n);
+    const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5, 0.7, 3, 6), stdMat(0x5b4030, 0.9), n);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.sin(i * 12.9) * 0.05;
+      const r = 70 + ((i * 37) % 23);
+      const k = 0.8 + ((i * 53) % 10) / 20;
+      p.set(Math.cos(a) * r, 0, Math.sin(a) * r * 1.15);
+      s.set(k, k, k);
+      m.compose(p.clone().setY(1.5 * k), q, s);
+      trunks.setMatrixAt(i, m);
+      m.compose(p.clone().setY(8 * k), q, s);
+      leaves.setMatrixAt(i, m);
+    }
+    scene.add(leaves, trunks);
+  }
+
+  /* =====================================================================
+     SETTINGS + DIFFICULTY
+     ===================================================================== */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked: keep defaults */ } },
+  };
+  // Auto-swing starts on for phones and tablets, off on desktop; a saved choice wins.
+  const settings = Object.assign({ auto: isTouch, diff: 'normal', scoring: 'classic', sound: true }, store.get('kc-settings', {}));
+  settings.scoring = 'classic';   // the game only uses classic (side-out) scoring
+  if (settings.mode !== 'ultimate') settings.mode = 'classic';   // Classic: only you use an ultimate
+  const saveSettings = () => store.set('kc-settings', settings);
+
+  /* =====================================================================
+     SOUND  (all synthesised with Web Audio; nothing to download)
+     Browsers only allow audio after a tap or key press, so the context is
+     created on the first one.
+     ===================================================================== */
+  const sfx = (() => {
+    let ctx = null, master = null, noiseBuf = null;
+    function unlock() {
+      if (!ctx) {
+        try {
+          ctx = new (window.AudioContext || window.webkitAudioContext)();
+          master = ctx.createGain();
+          master.gain.value = 0.8;
+          master.connect(ctx.destination);
+          noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+          const d = noiseBuf.getChannelData(0);
+          for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        } catch (e) { ctx = null; return; }
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+    }
+    const ready = () => ctx && settings.sound && ctx.state === 'running';
+    // Quieter with distance, and quieter still behind the menu.
+    const level = (dist) => clamp(1.15 - dist / 75, 0.2, 1) * (state.demo ? 0.3 : 1);
+
+    function noise(t, dur, gain, freq, q, type = 'bandpass', attack = 0.003) {
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuf;
+      src.playbackRate.value = 0.8 + Math.random() * 0.4;
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(f).connect(g).connect(master);
+      src.start(t, Math.random() * 0.5);
+      src.stop(t + dur + 0.05);
+    }
+    function tone(t, freq, dur, gain, type = 'sine', drop = 0.6) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t);
+      o.frequency.exponentialRampToValueAtTime(freq * drop, t + dur);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(gain, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(master);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    }
+
+    // The hollow "pock" of a paddle on a plastic ball; pitch and punch vary by shot.
+    const HIT = {
+      serve:  { f: 900,  g: 0.5 },
+      return: { f: 880,  g: 0.55 },
+      drive:  { f: 820,  g: 0.65 },
+      smash:  { f: 700,  g: 0.9 },
+      dink:   { f: 1150, g: 0.3 },
+      lob:    { f: 980,  g: 0.45 },
+      comet:  { f: 620,  g: 1.0 },
+    };
+    return {
+      unlock,
+      hit(type, dist) {
+        if (!ready()) return;
+        const h = HIT[type] || HIT.drive, v = level(dist), t = ctx.currentTime;
+        tone(t, h.f * (0.95 + Math.random() * 0.1), 0.07, h.g * v * 0.55, 'triangle', 0.7);
+        noise(t, 0.045, h.g * v * 0.6, 2600, 1.4);
+        if (type === 'comet') {
+          // Ultimate: a deep boom under the pop, then a roaring whoosh.
+          tone(t, 110, 0.5, 0.7 * v, 'sine', 0.4);
+          noise(t, 0.25, 0.5 * v, 300, 0.7, 'lowpass', 0.005);
+          noise(t + 0.03, 0.6, 0.35 * v, 1400, 0.6, 'bandpass', 0.05);
+        }
+      },
+      // Arming the ultimate: a quick rising charge-up.
+      callOut(text) {
+        if (!settings.sound || state.demo || state.autoplay) return;
+        try {
+          if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
+            const u = new SpeechSynthesisUtterance(text);
+            u.rate = 1.05; u.pitch = 1.15;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(u);
+          }
+        } catch (e) { /* no speech voice: the banner still shows */ }
+      },
+      arm() {
+        if (!ready()) return;
+        const t = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.exponentialRampToValueAtTime(900, t + 0.35);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+        const f = ctx.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.value = 2200;
+        o.connect(f).connect(g).connect(master);
+        o.start(t);
+        o.stop(t + 0.5);
+        noise(t, 0.4, 0.15, 3000, 0.8, 'bandpass', 0.2);
+      },
+      bounce(dist, strength) {
+        if (!ready()) return;
+        const v = level(dist) * (0.35 + strength * 0.65), t = ctx.currentTime;
+        tone(t, 430, 0.05, 0.22 * v, 'sine', 0.55);
+        noise(t, 0.03, 0.18 * v, 1500, 1.2);
+      },
+      net(dist) {
+        if (!ready()) return;
+        const v = level(dist), t = ctx.currentTime;
+        noise(t, 0.2, 0.4 * v, 420, 0.8, 'lowpass', 0.005);
+        tone(t, 150, 0.14, 0.25 * v, 'sine', 0.7);
+      },
+      // A crowd: filtered noise that swells and fades, with a few claps.
+      cheer(big) {
+        if (!ready()) return;
+        const t = ctx.currentTime, dur = big ? 2.6 : 1.5;
+        noise(t, dur, big ? 0.22 : 0.15, 1000, 0.5, 'bandpass', 0.25);
+        noise(t + 0.1, dur * 0.8, big ? 0.12 : 0.08, 2200, 0.7, 'bandpass', 0.3);
+        const claps = big ? 14 : 7;
+        for (let i = 0; i < claps; i++) noise(t + 0.15 + Math.random() * dur * 0.7, 0.04, 0.12 * Math.random() + 0.04, 1800 + Math.random() * 1200, 1.5);
+      },
+    };
+  })();
+  ['pointerdown', 'keydown', 'touchstart'].forEach((ev) => window.addEventListener(ev, () => sfx.unlock(), { passive: true }));
+
+  // Starting values from the spec; tuned in playtesting.
+  //   speed ft/s · react s · err ft of aim scatter · blunder = unforced error
+  //   chance · back = chance of staying at the baseline for a rally ·
+  //   leave = chance of letting an out-bound ball go · margin = how close to
+  //   the sidelines they aim.
+  const DIFF = {
+    easy:   { speed: 11.5, react: 0.38, err: 2.5,  blunder: 0.12, back: 0.45, leave: 0.5,  margin: 6.0 },
+    normal: { speed: 13.5, react: 0.24, err: 1.5,  blunder: 0.08, back: 0.15, leave: 0.8,  margin: 7.0 },
+    hard:   { speed: 15.5, react: 0.13, err: 1.0,  blunder: 0.05, back: 0.05, leave: 0.93, margin: 8.0 },
+  };
+
+  /* =====================================================================
+     PLAYERS
+     ===================================================================== */
+  const sideSign = (team) => (team === 'a' ? 1 : -1);  // your team plays +Z
+  const rightX = (team) => (team === 'a' ? 1 : -1);    // a team's right / forehand side
+  const other = (team) => (team === 'a' ? 'b' : 'a');
+  const TEAM_NAME = { a: 'Your team', b: 'Rivals' };
+  const HUMAN_SPEED = 15;
+
+  // Fatigue: a bar from 1 (fresh) to 0. Moving drains it in proportion to
+  // speed; standing still refills it. Below 75% a player runs at 75% speed,
+  // below 50% at half speed.
+  const FATIGUE = {
+    drain: 0.045,   // per second at full running speed (15 ft/s)
+    refill: 0.045,  // per second while standing still
+    still: 1.5,     // ft/s; slower than this counts as standing still
+  };
+  // Ultimate (yours only): One Shot. The meter fills as you hit and as
+  // your team wins points; M arms it and your next hit becomes a blazing,
+  // very fast shot that opponents react to 0.1 s late.
+  const ULT = {
+    perHit: 0.12,
+    perPoint: 0.15,
+    delay: 0.1,     // extra reaction time opponents need for a comet
+  };
+
+  function speedMult(p) {
+    if (p.stamina >= 0.75) return 1;
+    if (p.stamina >= 0.5) return 0.75;
+    return 0.5;
+  }
+  function tire(p, dt) {
+    const speed = Math.hypot(p.vel.x, p.vel.z);
+    if (speed > FATIGUE.still) p.stamina = Math.max(0, p.stamina - FATIGUE.drain * (speed / HUMAN_SPEED) * dt);
+    else p.stamina = Math.min(1, p.stamina + FATIGUE.refill * dt);
+  }
+
+  const players = CHARACTERS.map((def) => {
+    const ch = createCharacter(def);
+    scene.add(ch.root);
+    return {
+      def, ch, team: def.team, isHuman: def.id === 'you',
+      name: def.id === 'you' ? 'You' : def.name.charAt(0) + def.name.slice(1).toLowerCase(),
+      pos: new THREE.Vector3(),
+      vel: new THREE.Vector3(),
+      yaw: def.team === 'a' ? 0 : Math.PI,
+      clock: Math.random() * 3,
+      slot: 'R',          // which half of their court they serve/receive from
+      spot: { x: 0, z: 0 },
+      swing: null,        // { mode, t, contact, end } while a stroke plays
+      plan: null,         // AI intercept plan for the incoming ball
+      react: 0,
+      pending: null,      // your pressed shot waiting for the ball
+      cooldown: 0,
+      staysBack: false,
+      stamina: 1,         // fatigue bar: 1 = fresh
+    };
+  });
+  const you = players.find((p) => p.def.id === 'you');
+  const kai = players.find((p) => p.def.id === 'kai');
+  // Put four distinct roster players into the four slots (you, partner,
+  // two rivals): rebuild each body with the new look and name.
+  const lineup = { picks: [] };
+  function shuffled(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function setLineup(youIdx) {
+    const rest = shuffled(ROSTER.map((r) => r.i).filter((i) => i !== youIdx));
+    const picks = [youIdx ?? rest.pop(), rest[0], rest[1], rest[2]];
+    lineup.picks = picks;
+    players.forEach((p, k) => {
+      const r = ROSTER[picks[k]];
+      const def = Object.assign({}, p.def, {
+        name: r.short.toUpperCase(), full: r.full, roster: r.i,
+        skin: r.skin, hair: r.hair, hairColor: r.hairColor, paddle: r.paddle,
+      });
+      const ch = createCharacter(def);
+      scene.remove(p.ch.root);
+      p.ch.root.traverse((o) => { if (o.material) o.material.dispose(); });
+      scene.add(ch.root);
+      ch.root.position.copy(p.pos);
+      ch.root.rotation.y = p.yaw;
+      p.def = def; p.ch = ch;
+      p.full = r.full;
+      p.name = p.isHuman ? 'You' : r.short;
+    });
+    document.getElementById('nameA').textContent = `You · ${players[1].name}`;
+    document.getElementById('nameB').textContent = `${players[2].name} · ${players[3].name}`;
+    const u = ULT_INFO[ROSTER[picks[0]].ult];
+    document.querySelector('#ultChip .ult-name').textContent = u.name;
+    document.getElementById('ultChip').style.setProperty('--ult', u.color);
+    document.getElementById('ultBtn').setAttribute('aria-label', 'Ultimate: ' + u.name);
+    const help = document.getElementById('ultHelp');
+    if (help) help.textContent = `M or ULT. Every player has their own ultimate. Yours: ${u.name}. ${u.desc} ${u.kind === 'Shot' ? 'Press M when the meter is full; your next hit uses it.' : 'Press M when the meter is full; it starts at once.'}`;
+  }
+  setLineup(null);
+
+  const teamOf = (t) => players.filter((p) => p.team === t);
+  const partnerOf = (p) => players.find((q) => q.team === p.team && q !== p);
+  const slotX = (team, slot) => rightX(team) * (slot === 'R' ? 1 : -1) * 5;
+
+  function profile(p) {
+    if (p.team === 'b') return DIFF[settings.diff];
+    // Your partner (and you, in autoplay) plays at Hard on Normal and Hard, and at Normal on Easy.
+    return settings.diff === 'easy' ? DIFF.normal : DIFF.hard;
+  }
+
+  function clampToSide(p) {
+    const s = sideSign(p.team);
+    p.pos.x = Math.max(-AREA.halfW + 1, Math.min(AREA.halfW - 1, p.pos.x));
+    p.pos.z = s * Math.max(1.0, Math.min(AREA.halfL - 2, p.pos.z * s));
+  }
+
+  function steer(p, tvx, tvz, maxSpeed, dt, accel = 10) {
+    p.vel.x += (tvx - p.vel.x) * (1 - Math.exp(-dt * accel));
+    p.vel.z += (tvz - p.vel.z) * (1 - Math.exp(-dt * accel));
+    const sp = Math.hypot(p.vel.x, p.vel.z);
+    if (sp > maxSpeed) p.vel.multiplyScalar(maxSpeed / sp);
+    p.pos.x += p.vel.x * dt;
+    p.pos.z += p.vel.z * dt;
+    const bx = p.pos.x, bz = p.pos.z;
+    clampToSide(p);
+    if (bx !== p.pos.x) p.vel.x = 0;
+    if (bz !== p.pos.z) p.vel.z = 0;
+  }
+
+  function moveTo(p, tx, tz, maxSpeed, dt) {
+    const dx = tx - p.pos.x, dz = tz - p.pos.z, d = Math.hypot(dx, dz);
+    const want = d > 0.25 ? Math.min(maxSpeed, d * 4) : 0;
+    steer(p, d > 0 ? (dx / d) * want : 0, d > 0 ? (dz / d) * want : 0, maxSpeed, dt, 9);
+  }
+
+  /* ---------- strokes (animations from the character factory, played once) ---------- */
+  const STROKE = {
+    swing:    { contact: 0.48,  end: 1.0 },   // forehand
+    backhand: { contact: 0.471, end: 1.0 },
+    overhead: { contact: 0.752, end: 1.2 },
+  };
+  function pickStroke(p, bx, by) {
+    if (by > 5.2) return 'overhead';
+    return (bx - p.pos.x) * rightX(p.team) >= -0.4 ? 'swing' : 'backhand';
+  }
+  function startStroke(p, mode, lead) {
+    const s = STROKE[mode];
+    p.swing = { mode, t: Math.max(0, s.contact - Math.max(0, lead)), contact: s.contact, end: s.end };
+  }
+  function strokeAtContact(p, mode) {
+    if (p.swing && p.swing.mode === mode) p.swing.t = Math.max(p.swing.t, p.swing.contact - 0.03);
+    else startStroke(p, mode, 0.03);
+  }
+
+  function updateFacing(p, dt) {
+    const s = sideSign(p.team);
+    const netYaw = s > 0 ? 0 : Math.PI;
+    const speed = Math.hypot(p.vel.x, p.vel.z);
+    let target = netYaw;
+    if (!p.swing && speed > 2 && p.vel.z * s < speed * 0.6) target = Math.atan2(-p.vel.x, -p.vel.z);
+    let d = target - p.yaw;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    p.yaw += d * (1 - Math.exp(-dt * (p.swing ? 18 : 12)));
+  }
+
+  function animate(p, dt) {
+    p.ch.root.position.set(p.pos.x, 0, p.pos.z);
+    p.ch.root.rotation.y = p.yaw;
+    if (p.swing) {
+      p.swing.t += dt;
+      p.ch.update(p.swing.mode, p.swing.t, dt);
+      if (p.swing.t >= p.swing.end) p.swing = null;
+      return;
+    }
+    const speed = Math.hypot(p.vel.x, p.vel.z);
+    const running = speed > 1.5;
+    p.clock += dt * (running ? Math.min(1.25, Math.max(0.45, speed / 13)) : 1);
+    p.ch.update(running ? 'run' : 'idle', p.clock, dt);
+  }
+
+  /* =====================================================================
+     BALL  (fixed 120 Hz physics; no spin or drag, so paths are predictable)
+     ===================================================================== */
+  const G = 24;
+  const BALL_R = 0.2;
+  const BOUNCE_V = 0.66;
+  const BOUNCE_H = 0.85;
+  const STEP = 1 / 120;
+  const REACH = 4.0;
+  const SWEET = 1.6;
+
+  const netHeightAt = (x) => COURT.netCenter + (COURT.netPost - COURT.netCenter) * Math.pow(Math.min(1, Math.abs(x) / COURT.postX), 2);
+
+  const ball = {
+    pos: new THREE.Vector3(), vel: new THREE.Vector3(),
+    held: true, live: false, bounces: 0, lastTeam: null, netted: false,
+    comet: false,       // this shot is your One Shot
+    kind: 'plain',      // which ultimate shot this is (plain, comet, curve, frost, quake, mirage)
+  };
+
+  function stepBall(b, dt) {
+    const pz = b.pos.z, py = b.pos.y;
+    b.vel.y -= G * dt;
+    b.pos.addScaledVector(b.vel, dt);
+    if (!b.netted && (pz > 0) !== (b.pos.z > 0) && Math.abs(b.pos.x) < COURT.postX) {
+      const f = pz / (pz - b.pos.z);
+      const yc = py + (b.pos.y - py) * f;
+      if (yc < netHeightAt(b.pos.x) + BALL_R * 0.5) {
+        b.netted = true;
+        b.pos.z = pz > 0 ? 0.25 : -0.25;
+        b.vel.z *= -0.12;
+        b.vel.x *= 0.4;
+        if (b.vel.y > 0) b.vel.y *= 0.3;
+        return 'net';
+      }
+    }
+    // Touching the fence marks the ball: once it has bounced, a fence hit makes it dead.
+    if (Math.abs(b.pos.x) > AREA.halfW - 0.3) { b.pos.x = Math.sign(b.pos.x) * (AREA.halfW - 0.3); b.vel.x *= -0.25; b.fenced = true; }
+    if (Math.abs(b.pos.z) > AREA.halfL - 0.3) { b.pos.z = Math.sign(b.pos.z) * (AREA.halfL - 0.3); b.vel.z *= -0.25; b.fenced = true; }
+    if (b.pos.y < BALL_R) {
+      b.pos.y = BALL_R;
+      if (b.vel.y < -1.2) {
+        b.vel.y = -b.vel.y * BOUNCE_V;
+        b.vel.x *= BOUNCE_H;
+        b.vel.z *= BOUNCE_H;
+        return 'bounce';
+      }
+      b.vel.y = 0;
+      b.vel.x *= 0.985;
+      b.vel.z *= 0.985;
+      return 'roll';
+    }
+    return null;
+  }
+
+  // belief: what a rival expects before reading a trick (no bend, no kick).
+  function predict(maxT = 3.5, src = ball, belief = false) {
+    const sim = { pos: src.pos.clone(), vel: src.vel.clone(), netted: src.netted, age: src.age || 0, nb: src.nb || 0,
+      curve: belief ? 0 : src.curve || 0, frost: !!src.frost, quake: belief ? 0 : src.quake || 0 };
+    const out = [];
+    let b = src.bounces || 0, t = 0;
+    const dt = 1 / 120;
+    for (let i = 0; t < maxT; i++) {
+      t += dt;
+      const ev = stepB(sim, dt);
+      if (ev === 'bounce' || ev === 'roll') b++;
+      if (i % 2 === 1) out.push({ t, x: sim.pos.x, y: sim.pos.y, z: sim.pos.z, b });
+      if (b >= 2) break;
+      if (sim.fenced && b >= 1) break;   // dead once it bounces into the fence
+    }
+    return out;
+  }
+
+  /* =====================================================================
+     SHOTS
+     ===================================================================== */
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const randn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function solveShot(P, tx, tz, t, clear) {
+    const v = new THREE.Vector3();
+    for (let i = 0; i < 40; i++) {
+      v.set((tx - P.x) / t, (BALL_R - P.y + 0.5 * G * t * t) / t, (tz - P.z) / t);
+      const tn = -P.z / v.z;
+      if (tn > 0 && tn < t) {
+        const yn = P.y + v.y * tn - 0.5 * G * tn * tn;
+        if (yn < netHeightAt(P.x + v.x * tn) + clear) { t *= 1.07; continue; }
+      }
+      break;
+    }
+    return v;
+  }
+
+  function pickGap(p, margin) {
+    const opp = teamOf(other(p.team));
+    let best = 0, bestScore = -1;
+    for (const c of [-1, -0.5, 0, 0.5, 1]) {
+      const x = c * margin;
+      const d = Math.min(...opp.map((o) => Math.abs(o.pos.x - x)));
+      const sc = d + Math.random() * 3;
+      if (sc > bestScore) { bestScore = sc; best = x; }
+    }
+    return best;
+  }
+
+  // Landing depth past the net (ft), launch speed (ft/s), net clearance (ft).
+  const SHOT = {
+    serve:  { z: [15.5, 19.5], speed: 31, clear: 0.9 },
+    return: { z: [15, 19.5],   speed: 33, clear: 0.8 },
+    drive:  { z: [12.5, 19.5], speed: 43, clear: 0.35 },
+    dink:   { z: [2.6, 5.8],   clear: 0.5 },
+    lob:    { z: [16.5, 20],   clear: 4 },
+    smash:  { z: [9, 17],      speed: 60, clear: 0.15 },
+    comet:  { z: [12, 18],     speed: 75, clear: 0.25 },   // ultimate
+  };
+
+  // aimIn: -1..1 from your left/right input, or null to let the game choose.
+  function hitBall(p, type, aimIn) {
+    // Rules checked at the moment of contact.
+    if (type !== 'serve') {
+      if (state.hits === 1 && p !== state.receiver) return fault(p, 'RECEIVER');
+      const volley = ball.bounces === 0;
+      if (volley && state.hits < 3) return fault(p, 'TWO_BOUNCE');
+      if (volley && Math.abs(p.pos.z) < COURT.kitchen) return fault(p, 'KITCHEN');
+    }
+    const ctrl = isControlled(p);
+    // An armed shot ultimate changes the next legal hit (not a serve). A
+    // computer player in Ultimate mode uses a full shot meter straight away.
+    let ultKind = null;
+    const aiShot = !ctrl && ultMode() && p.meter >= 1 && ULT_INFO[ultOf(p)].kind === 'Shot';
+    if (type !== 'serve' && (p.armed || aiShot)) {
+      if (aiShot) { p.stat.ults++; sfx.callOut(ULT_INFO[ultOf(p)].name + '!'); }
+      p.armed = false;
+      p.meter = 0;
+      ultKind = ultOf(p);
+      type = ultKind === 'comet' ? 'comet' : 'drive';
+    }
+    const prof = profile(p);
+    const side = sideSign(p.team), opp = -side;
+    const P = ball.pos.clone();
+    P.y = Math.max(P.y, BALL_R + 0.05);
+    const spec = SHOT[type];
+    let tz = opp * rand(spec.z[0], spec.z[1]);
+    let tx;
+    if (type === 'serve') {
+      // Crosscourt into the receiver's service court.
+      const cx = slotX(other(p.team), p.slot), s = Math.sign(cx);
+      tx = cx + (aimIn != null && Math.abs(aimIn) > 0.25 ? aimIn * 3.2 : rand(-2.6, 2.6));
+      tx = s > 0 ? clamp(tx, 0.8, COURT.halfW - 0.8) : clamp(tx, -(COURT.halfW - 0.8), -0.8);
+    } else {
+      tx = aimIn != null && Math.abs(aimIn) > 0.25 ? aimIn * 8.2 : pickGap(p, ctrl ? 8 : prof.margin);
+      tx = clamp(tx, -(COURT.halfW - 0.8), COURT.halfW - 0.8);
+    }
+
+    let err;
+    if (ctrl) {
+      if (type === 'serve') err = 0.4;
+      else {
+        const d = Math.hypot(ball.pos.x - p.pos.x, ball.pos.z - p.pos.z);
+        const q = clamp(1 - Math.abs(d - SWEET) / 3, 0.3, 1);
+        err = 1.3 * ((1 - q) * 2.2 + 0.25);
+      }
+    } else {
+      err = prof.err * (type === 'serve' ? 0.6 : 1);
+    }
+    if (type === 'comet') err = 0.3;   // the ultimate always flies true
+    tx += randn() * err * 0.8;
+    tz += randn() * err;
+    let netBlunder = false;
+    if (!ctrl && Math.random() < prof.blunder * (type === 'serve' ? 0.45 : 1)) {
+      if (Math.random() < 0.4) netBlunder = true;
+      else { tx += Math.sign(randn()) * rand(2.5, 5); tz += opp * rand(2, 5); }
+    }
+    // Poison: a gassed rival often mis-hits, long or wide.
+    if (gassed(p) && Math.random() < GAS.mishit) {
+      const long = Math.random() < 0.5;
+      tx = long ? rand(-6, 6) : (Math.random() < 0.5 ? -1 : 1) * rand(12.5, 15);
+      tz = opp * (long ? rand(24.5, 28) : rand(10, 18));
+      netBlunder = false;
+    }
+    if (tz * opp < 1.5) tz = opp * 1.5;
+
+    let t;
+    const dist = Math.hypot(tx - P.x, tz - P.z);
+    if (type === 'dink') t = clamp(dist / 15, 0.8, 1.5);
+    else if (type === 'lob') t = rand(1.75, 2.05);
+    else t = dist / spec.speed;
+
+    ball.pos.copy(P);
+    ball.vel.copy(solveShot(P, tx, tz, t, spec.clear));
+    if (netBlunder) ball.vel.y -= rand(3, 6);
+    ball.bounces = 0;
+    ball.fenced = false;
+    ball.lastTeam = p.team;
+    ball.netted = false;
+    ball.held = false;
+    ball.live = true;
+    ball.comet = type === 'comet';
+    ball.kind = ultKind || 'plain';
+    Object.assign(ball, { age: 0, nb: 0, curve: 0, frost: false, quake: 0, blocked: false, kicked: false });
+    fakes.forEach((f) => { if (f.alive) ufx.poof(f.pos); f.alive = false; });
+    U.shot = null;
+    U.ballT = 0;
+    state.chaseAll = null;
+    players.forEach((q) => { q.fake = null; q.fooled = false; });
+    if (ultKind && ultKind !== 'comet') shotUlt(ultKind, P, p);
+    if (!ultKind && (ctrl || ultMode())) p.meter = Math.min(1, p.meter + ULT.perHit);
+    state.hits++;
+    if (p.stat) p.stat.hits++;
+    state.lastHitter = p;
+    state.faulter = null;
+    state.sinceHit = 0;
+    p.pending = null;
+    strokeAtContact(p, type === 'serve' ? 'swing' : pickStroke(p, P.x, P.y));
+    if (type === 'smash') state.shake = 0.35;
+    if (type === 'comet') state.shake = 0.6;
+    if (ultKind) hud.banner(ULT_INFO[ultKind].name + '!', p === you ? 'Ultimate' : `${p.full} · Ultimate`, p.team);
+    hud.ult();
+    sfx.hit(type, earDist(P));
+    replan();
+  }
+
+  const earDist = (v) => camera.position.distanceTo(v);
+
+  // A rule broken at contact: play the stroke, pop the ball up, lose the rally.
+  function fault(p, reason) {
+    state.faulter = p;   // the player who broke the rule gets the unforced error
+    strokeAtContact(p, pickStroke(p, ball.pos.x, ball.pos.y));
+    p.pending = null;
+    ball.lastTeam = p.team;
+    ball.vel.set(randn() * 2, 5, -sideSign(p.team) * 2);
+    ball.bounces = 0;
+    ball.fenced = false;
+    sfx.hit('dink', earDist(ball.pos));
+    pointTo(other(p.team), reason);
+  }
+
+  /* =====================================================================
+     MATCH  (serve, rotation, faults, scoring)
+     ===================================================================== */
+  const state = {
+    phase: 'serve',     // serve | rally | point | over
+    score: { a: 0, b: 0 },
+    servingTeam: 'a',
+    serverNum: 2,
+    server: null,
+    receiver: null,
+    winner: null,
+    hits: 0,            // shots this rally, the serve included
+    timer: 0,
+    serveTimer: 0,
+    sinceHit: 0,
+    planAt: 0,
+    samples: [],
+    landing: null,
+    chaser: { a: null, b: null },
+    leaving: false,
+    shake: 0,
+    autoplay: location.hash === '#autoplay',
+    demo: false,        // an all-AI match playing behind the title menu
+    started: false,
+    excite: 0,          // crowd energy after a point your team wins
+    ult: 0,             // your ultimate meter, 0..1
+  };
+  const isControlled = (p) => p.isHuman && !state.autoplay && !state.demo;
+  const stats = { games: [], rallies: 0, shots: 0, reasons: {}, violations: [] };
+
+  const REASON = {
+    NET: 'Into the net',
+    FAULT: 'Fault',
+    OUT: 'Out!',
+    SERVE_OUT: 'Serve out',
+    SERVE_KITCHEN: 'Serve in the kitchen',
+    SERVE_WRONG: 'Wrong service court',
+    TWO_BOUNCE: 'Two-bounce rule!',
+    KITCHEN: 'Kitchen volley!',
+    RECEIVER: 'Wrong receiver',
+    STUCK: 'Dead ball',
+    FENCE: 'Into the fence',
+    FIREWALL: 'Blocked by the Firewall!',
+  };
+
+  function startMatch() {
+    players.forEach((p) => { p.stat = { hits: 0, winners: 0, errors: 0, ults: 0 }; });
+    state.lastHitter = null;
+    state.faulter = null;
+    state.score = { a: 0, b: 0 };
+    state.winner = null;
+    state.started = true;
+    players.forEach((p) => { p.stamina = 1; });   // everyone starts the match fresh
+    players.forEach((p) => { p.meter = 0; p.armed = false; });
+    you.slot = 'R'; kai.slot = 'L';
+    players.find((p) => p.def.id === 'rex').slot = 'R';
+    players.find((p) => p.def.id === 'juno').slot = 'L';
+    state.servingTeam = Math.random() < 0.5 ? 'a' : 'b';
+    // Classic games start "0-0-2": the first serving team gets one server.
+    state.serverNum = settings.scoring === 'classic' ? 2 : 1;
+    state.server = teamOf(state.servingTeam).find((p) => p.slot === 'R');
+    setupServe();
+    hud.banner(state.servingTeam === 'a' ? 'You serve first' : 'Rivals serve first', 'Coin toss', state.servingTeam);
+  }
+
+  function startDemo() {
+    state.demo = true;
+    startMatch();
+  }
+
+  function place(p, x, z) {
+    p.pos.set(x, 0, z);
+    p.spot = { x, z };
+    p.vel.set(0, 0, 0);
+    p.yaw = p.team === 'a' ? 0 : Math.PI;
+  }
+
+  function setupServe() {
+    state.phase = 'serve';
+    state.hits = 0;
+    state.leaving = false;
+    state.chaser = { a: null, b: null };
+    state.landing = null;
+    ball.held = true;
+    ball.live = false;
+    ball.vel.set(0, 0, 0);
+    ball.bounces = 0;
+    ball.fenced = false;
+    ball.lastTeam = null;
+    ball.netted = false;
+    ball.comet = false;
+    resetUlts();
+    hud.ult();
+
+    const st = state.servingTeam, rt = other(st);
+    const srv = state.server, slot = srv.slot, os = slot === 'R' ? 'L' : 'R';
+    const rcv = teamOf(rt).find((p) => p.slot === slot);
+    state.receiver = rcv;
+    // Server behind the baseline; partner at the baseline; receiver diagonal
+    // at the baseline; receiver's partner up at the kitchen line.
+    place(srv, slotX(st, slot) * 0.5, sideSign(st) * (COURT.halfL + 1.2));
+    place(partnerOf(srv), slotX(st, os) * 0.85, sideSign(st) * (COURT.halfL - 0.5));
+    place(rcv, slotX(rt, slot) * 0.85, sideSign(rt) * (COURT.halfL - 0.5));
+    place(partnerOf(rcv), slotX(rt, os) * 0.85, sideSign(rt) * (COURT.kitchen + 1.6));
+    for (const p of players) {
+      p.plan = null;
+      p.pending = null;
+      p.swing = null;
+      p.staysBack = !isControlled(p) && Math.random() < profile(p).back;
+    }
+    state.serveTimer = rand(1.0, 1.5);
+    hud.score();
+    hud.prompt(isControlled(srv) ? 'serve' : null);
+  }
+
+  function doServe(p) {
+    state.phase = 'rally';
+    ball.pos.copy(handPos(p));
+    hitBall(p, 'serve', isControlled(p) ? readInput().x : null);
+    hud.prompt(null);
+  }
+
+  function handPos(p) {
+    const low = state.phase === 'serve' || state.phase === 'rally';  // underhand serve: below the waist
+    return new THREE.Vector3(p.pos.x + rightX(p.team) * 1.2, low ? 1.9 : 2.7, p.pos.z - sideSign(p.team) * 0.5);
+  }
+
+  function onBounce(kind) {
+    if (kind === 'bounce') {
+      fx.bounce(ball.pos);
+      sfx.bounce(earDist(ball.pos), Math.min(1, Math.abs(ball.vel.y) / 10));
+    }
+    if (!ball.live) return;
+    ball.bounces++;
+    const sideTeam = ball.pos.z > 0 ? 'a' : 'b';
+    const hitter = ball.lastTeam;
+    if (ball.bounces === 1) {
+      if (sideTeam === hitter) return pointTo(other(hitter), ball.netted ? 'NET' : 'FAULT');
+      const out = Math.abs(ball.pos.x) > COURT.halfW + 0.05 || Math.abs(ball.pos.z) > COURT.halfL + 0.05;
+      if (out) return pointTo(other(hitter), state.hits === 1 ? 'SERVE_OUT' : 'OUT');
+      if (state.hits === 1) {
+        // The serve must clear the kitchen (its line counts as kitchen) and
+        // land in the diagonal service court (the centreline counts as in).
+        if (Math.abs(ball.pos.z) <= COURT.kitchen + 0.05) return pointTo(other(hitter), 'SERVE_KITCHEN');
+        const cx = slotX(other(hitter), state.server.slot);
+        if (ball.pos.x * Math.sign(cx) < -0.1) return pointTo(other(hitter), 'SERVE_WRONG');
+      }
+    } else {
+      pointTo(hitter, 'DOUBLE');
+    }
+  }
+
+  // Score the rally. Returns the line shown under the banner.
+  function award(w) {
+    const st = state.servingTeam;
+    const before = { a: state.score.a, b: state.score.b };
+    let note;
+    if (settings.scoring === 'rally') {
+      state.score[w]++;
+      if (w === st) {
+        teamOf(st).forEach((p) => { p.slot = p.slot === 'R' ? 'L' : 'R'; });
+        note = `Point to ${TEAM_NAME[w].toLowerCase()}`;
+      } else {
+        state.servingTeam = w;
+        const parity = state.score[w] % 2 === 0 ? 'R' : 'L';
+        state.server = teamOf(w).find((p) => p.slot === parity);
+        note = `Point and serve to ${TEAM_NAME[w].toLowerCase()}`;
+      }
+      state.serverNum = 1;
+    } else {
+      if (w === st) {
+        state.score[w]++;
+        teamOf(st).forEach((p) => { p.slot = p.slot === 'R' ? 'L' : 'R'; });
+        note = `Point to ${TEAM_NAME[w].toLowerCase()}`;
+      } else if (state.serverNum === 1) {
+        state.serverNum = 2;
+        state.server = partnerOf(state.server);
+        note = 'Second server';
+      } else {
+        state.servingTeam = w;
+        state.serverNum = 1;
+        state.server = teamOf(w).find((p) => p.slot === 'R');
+        note = 'Side out';
+      }
+      // Self-check: in classic scoring only the serving team may score.
+      for (const t of ['a', 'b']) {
+        if (state.score[t] !== before[t] && t !== st) stats.violations.push(`non-serving team ${t} scored`);
+      }
+    }
+    return note;
+  }
+
+  function pointTo(w, reason) {
+    if (state.phase !== 'rally') return;
+    state.lastPoint = { w, reason };
+    ball.live = false;
+    state.phase = 'point';
+    state.timer = state.autoplay ? 1.2 : 2.2;
+    state.landing = null;
+    const note = award(w);
+    const { a, b } = state.score;
+    if ((a >= 11 || b >= 11) && Math.abs(a - b) >= 2) state.winner = a > b ? 'a' : 'b';
+    stats.rallies++;
+    stats.shots += state.hits;
+    stats.reasons[reason] = (stats.reasons[reason] || 0) + 1;
+    // Match statistics: a winner is a ball the other team never got back;
+    // an unforced error is a rally lost on your own shot or a rule you broke.
+    if (reason === 'FIREWALL') (state.firewallBy || you).stat.winners++;
+    else if (reason === 'DOUBLE' || reason === 'FENCE') { if (state.lastHitter && state.lastHitter.team === w) state.lastHitter.stat.winners++; }
+    else if (reason !== 'STUCK') { const who = state.faulter || state.lastHitter; if (who && who.team !== w) who.stat.errors++; }
+    state.faulter = null;
+    const big = reason === 'DOUBLE' || reason === 'FENCE' ? (w === 'a' ? 'Winner!' : 'Missed it') : REASON[reason];
+    hud.banner(big, state.winner ? 'Game point' : note, w);
+    hud.score();
+    if (w === 'a' && !state.demo && !state.autoplay) {
+      state.excite = 1;
+      sfx.cheer(false);
+    }
+    // Meters fill for the team that won the point (only yours in Classic mode).
+    for (const p of teamOf(w)) if (isControlled(p) || ultMode()) p.meter = Math.min(1, p.meter + ULT.perPoint);
+    hud.ult();
+  }
+
+  function gameOver() {
+    state.phase = 'over';
+    const { a, b } = state.score;
+    stats.games.push({ a, b, winner: state.winner, scoring: settings.scoring, diff: settings.diff });
+    // Self-check: a finished game must be 11+ and won by exactly 2 past 10-10.
+    const hi = Math.max(a, b), lo = Math.min(a, b);
+    const legal = hi >= 11 && hi - lo >= 2 && (hi === 11 || hi - lo === 2);
+    if (!legal) stats.violations.push(`illegal final score ${a}-${b}`);
+    if (state.autoplay || state.demo) { state.timer = 1.5; return; }
+    // Remember this game for the menu's "Last 3 games".
+    const hist = store.get('kc-history', []);
+    hist.unshift({ a, b, winner: state.winner, diff: settings.diff, names: players.map((p) => p.full) });
+    store.set('kc-history', hist.slice(0, 10));
+    if (state.winner === 'a') { state.excite = 1.6; sfx.cheer(true); }
+    cards.over(state.winner, a, b);
+  }
+
+  /* =====================================================================
+     AI
+     ===================================================================== */
+  // The earliest reachable point on this player's side where a legal hit is
+  // possible: after the bounce, or a volley once the two-bounce rule is
+  // satisfied and the player would be standing outside the kitchen.
+  function planFor(p, samples) {
+    const prof = profile(p);
+    const s = sideSign(p.team), r = rightX(p.team);
+    const volleyOK = state.hits >= 3;
+    const nearNet = Math.abs(p.pos.z) < 13;
+    let fallback = null, fbGap = Infinity;
+    for (const smp of samples) {
+      if (smp.b >= 2) break;
+      if (smp.z * s < 1) continue;
+      const volley = smp.b === 0;
+      const z = smp.z + s * 0.4;
+      if (volley) {
+        if (!volleyOK) continue;
+        if (Math.abs(z) < COURT.kitchen + 0.4) continue;
+        if (!(nearNet || smp.y > 2.5) || smp.y < 1.2) continue;
+      }
+      if (smp.y < 0.45 || smp.y > 6.8) continue;
+      if (Math.abs(smp.x) > AREA.halfW - 1.2 || Math.abs(smp.z) > AREA.halfL - 2.2) continue;
+      const x = smp.x - r * SWEET;
+      const dist = Math.hypot(x - p.pos.x, z - p.pos.z);
+      // Tired players know they are slower; a comet costs extra reaction time.
+      const need = prof.react + (ball.comet ? ULT.delay : 0) + Math.max(0, p.frozen || 0) + Math.max(0, p.stun || 0) + dist / (prof.speed * speedMult(p));
+      const plan = { x, z, t: smp.t, bx: smp.x, by: smp.y, volley, dist };
+      if (need <= smp.t) return Object.assign(plan, { ok: true });
+      if (need - smp.t < fbGap) { fbGap = need - smp.t; fallback = plan; }
+    }
+    return fallback ? Object.assign(fallback, { ok: false }) : null;
+  }
+
+  function replan() {
+    const recv = other(ball.lastTeam);
+    // Before a Flaky bend, an Earthquake kick or a Mirage reveal, rivals plan on what they expect.
+    const sh = U.shot;
+    const hide = sh && recv !== sh.team && !sh.revealed && ball.kind === sh.kind && ['curve', 'quake', 'mirage'].includes(sh.kind);
+    const mirage = hide && sh.kind === 'mirage';
+    state.samples = predict(3.5, ball, hide);
+    state.chaseAll = mirage ? recv : null;
+    state.planAt = state.sinceHit;
+    const first = state.samples.find((s) => s.b === ball.bounces + 1);
+    state.landing = first && recv === 'a' ? first : null;
+    state.chaser = { a: null, b: null };
+    state.leaving = false;
+    for (const p of players) p.plan = null;
+    const team = teamOf(recv);
+    for (const p of team) {
+      p.plan = planFor(p, mirage && p.fake ? predict(3.5, p.fake, true) : state.samples);
+      if (!isControlled(p)) p.react = profile(p).react + (ball.comet ? ULT.delay : 0);
+    }
+    const goingOut = first && ball.bounces === 0 &&
+      (Math.abs(first.x) > COURT.halfW + 0.3 || Math.abs(first.z) > COURT.halfL + 0.3);
+    if (mirage) return;   // each rival chases the ball they believe in
+    const npcs = team.filter((p) => !isControlled(p));
+    if (goingOut && npcs.length && Math.random() < profile(npcs[0]).leave) {
+      state.leaving = true;
+      return;
+    }
+    if (state.hits === 1) { state.chaser[recv] = state.receiver; return; }  // only the receiver returns serve
+    const score = (p) => (!p.plan ? 1e9 : (p.plan.ok ? p.plan.dist : 1000 + p.plan.dist));
+    if (recv === 'a' && isControlled(you)) {
+      // Kai only takes a ball that is clearly closer to Kai than to you.
+      state.chaser.a = kai.plan && kai.plan.ok && (!you.plan || kai.plan.dist < you.plan.dist * 0.7) ? kai : you;
+    } else {
+      const [p1, p2] = team;
+      state.chaser[recv] = score(p1) <= score(p2) ? p1 : p2;
+    }
+  }
+
+  // Doubles positioning: the serving team stays back until the third shot;
+  // the receiver moves up after the return; the receiver's partner starts at
+  // the kitchen line. Then everyone pushes up, shading toward the ball.
+  function homeFor(p) {
+    if (state.phase === 'serve') return p.spot;
+    const s = sideSign(p.team);
+    let up;
+    if (p.team === state.servingTeam) up = state.hits >= 3;
+    else up = p === state.receiver ? state.hits >= 2 : true;
+    if (p.staysBack) up = false;
+    const z = s * (up ? COURT.kitchen + 1.6 : COURT.halfL - 1.5);
+    const bx = clamp(ball.pos.x, -COURT.halfW, COURT.halfW);
+    let sx = slotX(p.team, p.slot) * 0.8;
+    // Kai covers whichever half you are not on.
+    if (p === kai && isControlled(you)) sx = (you.pos.x >= 0 ? -1 : 1) * 4;
+    return { x: sx * 0.65 + bx * 0.35, z };
+  }
+
+  function chooseShot(p) {
+    const depth = Math.abs(p.pos.z);
+    const opp = teamOf(other(p.team));
+    const oppAtNet = opp.reduce((a, o) => a + Math.abs(o.pos.z), 0) / 2 < COURT.kitchen + 4;
+    const r = Math.random();
+    if (state.hits === 1) return r < 0.1 ? 'lob' : 'return';      // return of serve: deep
+    if (state.hits === 2) return r < 0.55 ? 'dink' : 'drive';     // third shot: drop or drive
+    if (ball.pos.y > 4.6 && depth < 15) return 'smash';
+    if (depth < COURT.kitchen + 3.5) {
+      if (ball.pos.y < 2.2) return r < 0.8 ? 'dink' : r < 0.9 ? 'lob' : 'drive';
+      return oppAtNet ? (r < 0.6 ? 'dink' : 'drive') : 'drive';
+    }
+    return oppAtNet ? (r < 0.5 ? 'dink' : r < 0.85 ? 'drive' : 'lob') : (r < 0.7 ? 'drive' : 'dink');
+  }
+
+  function updateAI(p, dt) {
+    const prof = profile(p);
+    const fast = p.windT > 0 ? WIND.boost : 1;   // Reborn
+    if (status(p, dt, prof.speed * fast)) return;
+    if (state.phase === 'serve') {
+      if (state.server === p) { p.vel.set(0, 0, 0); return; }
+      glide(p, p.spot.x, p.spot.z, prof.speed * speedMult(p) * fast, dt);
+      return;
+    }
+    const incoming = state.phase === 'rally' && ball.live && ball.lastTeam && ball.lastTeam !== p.team;
+    const chasing = incoming && !state.leaving && (state.chaser[p.team] === p || state.chaseAll === p.team) && p.plan;
+    let tx, tz;
+    if (chasing) {
+      if (p.react > 0) { p.react -= dt; tx = p.pos.x; tz = p.pos.z; }
+      else { tx = p.plan.x; tz = p.plan.z; }
+    } else {
+      const h = homeFor(p);
+      tx = h.x; tz = h.z;
+    }
+    glide(p, tx, tz, prof.speed * speedMult(p) * fast, dt);
+    if (pulled(p)) holePull(p, dt);
+    if (!chasing) return;
+
+    const remain = p.plan.t - (state.sinceHit - state.planAt);
+    if (!p.swing && remain < 0.32 && remain > -0.25) startStroke(p, pickStroke(p, p.plan.bx, p.plan.by), remain);
+    if (canHit(p) && horizDist(p) < 2.7) {
+      const volley = ball.bounces === 0;
+      if (volley && (!p.plan.volley || state.hits < 3 || Math.abs(p.pos.z) < COURT.kitchen)) return;  // let it bounce
+      hitBall(p, chooseShot(p), null);
+    }
+  }
+
+  const horizDist = (p) => Math.hypot(ball.pos.x - p.pos.x, ball.pos.z - p.pos.z);
+
+  function canHit(p) {
+    if (state.phase !== 'rally' || !ball.live || ball.held) return false;
+    if (ball.lastTeam === p.team || ball.bounces >= 2) return false;
+    if (ball.pos.z * sideSign(p.team) < -0.2) return false;
+    if (ball.pos.y < 0.25 || ball.pos.y > 8) return false;
+    return horizDist(p) <= REACH;
+  }
+
+  /* =====================================================================
+     YOU
+     ===================================================================== */
+  function shotPress(type) {
+    if (cards.open() || !isControlled(you)) return;
+    if (state.phase === 'serve' && state.server === you) { doServe(you); return; }
+    if (state.phase !== 'rally' || you.cooldown > 0 || you.pending) return;
+    you.pending = { type, t: 0.26 };
+    you.cooldown = 0.38;
+    startStroke(you, pickStroke(you, ball.pos.x, ball.pos.y), 0.18);
+  }
+
+  // M / ULT: once the meter is full, use your player's ultimate. A shot
+  // ultimate arms your next hit; a boost starts straight away.
+  function activateUlt() {
+    if (cards.open() || !isControlled(you) || you.armed || you.meter < 1) return;
+    if (state.phase !== 'serve' && state.phase !== 'rally') return;
+    useUlt(you);
+  }
+
+  function upgrade(type) {
+    if (type === 'drive' && ball.pos.y > 4.8 && Math.abs(you.pos.z) < 15) return 'smash';
+    return type;
+  }
+
+  function autoShot() {
+    if (state.hits === 1) return 'return';
+    if (ball.pos.y > 4.8 && Math.abs(you.pos.z) < 15) return 'smash';
+    if (Math.abs(you.pos.z) < COURT.kitchen + 3 && ball.pos.y < 2.4) return 'dink';
+    return 'drive';
+  }
+
+  function updateYou(dt) {
+    const inp = cards.open() ? { x: 0, z: 0 } : readInput();
+    you.cooldown = Math.max(0, you.cooldown - dt);
+    if (state.phase === 'serve' && state.server === you) {
+      you.vel.set(0, 0, 0);   // the server stays put; left/right aims the serve
+      return;
+    }
+    const top = HUMAN_SPEED * speedMult(you) * (you.windT > 0 ? WIND.boost : 1);
+    if (status(you, dt, top)) return;   // knocked back, frozen or off balance
+    if (flooded(you) && Math.hypot(you.vel.x, you.vel.z) >= TIDE.start) {
+      // High Tide: once you move you cannot stop, only turn slowly.
+      const has = inp.x || inp.z;
+      slide(you, you.pos.x + (has ? inp.x : you.vel.x) * 5, you.pos.z + (has ? inp.z : you.vel.z) * 5, top, dt);
+    } else steer(you, inp.x * top, inp.z * top, top, dt, 12);
+    if (pulled(you)) holePull(you, dt);
+    if (you.pending) {
+      you.pending.t -= dt;
+      if (canHit(you)) hitBall(you, upgrade(you.pending.type), inp.x);
+      else if (you.pending.t <= 0) you.pending = null;
+    } else if (settings.auto && canHit(you) && horizDist(you) < 2.6 && state.chaser.a !== kai) {
+      // Auto-swing waits for a legal moment: no early volleys, none from the kitchen.
+      const volley = ball.bounces === 0;
+      const legal = !volley || (state.hits >= 3 && Math.abs(you.pos.z) >= COURT.kitchen);
+      const mine = state.hits !== 1 || state.receiver === you;
+      if (legal && mine) hitBall(you, autoShot(), inp.x);
+    }
+  }
+
+  /* =====================================================================
+     INPUT
+     ===================================================================== */
+  const keys = {};
+  const SHOT_KEYS = { Space: 'drive', KeyJ: 'drive', KeyK: 'dink', KeyL: 'lob' };
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code) && !cards.picking()) e.preventDefault();
+    if (cards.picking()) {
+      if (e.code === 'Escape') cards.back();
+      return;
+    }
+    if (cards.open()) {
+      if (e.code === 'Enter') cards.primary();
+      else if (e.code === 'Escape' || e.code === 'KeyP') cards.back();
+      return;
+    }
+    if (e.code === 'Escape' || e.code === 'KeyP') { cards.pause(); return; }
+    keys[e.code] = true;
+    if (!e.repeat && SHOT_KEYS[e.code]) shotPress(SHOT_KEYS[e.code]);
+    if (!e.repeat && e.code === 'KeyM') activateUlt();
+  });
+  window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+  window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+  const joy = { id: null, cx: 0, cy: 0, x: 0, y: 0 };
+  const joyZone = document.getElementById('joyZone');
+  const joyBase = document.getElementById('joyBase');
+  const joyKnob = document.getElementById('joyKnob');
+  const shotPad = document.getElementById('shotPad');
+  const JOY_R = 52;
+  let touchUI = false;
+
+  function joyRest() {
+    joyBase.style.left = '96px';
+    joyBase.style.top = (window.innerHeight - 120) + 'px';
+    joyKnob.style.transform = 'translate(0px, 0px)';
+    joyBase.classList.add('idle');
+  }
+  function enableTouchUI() {
+    touchUI = true;
+    document.body.classList.add('touch');
+    joyZone.hidden = false;
+    joyBase.hidden = false;
+    shotPad.hidden = false;
+    document.getElementById('keys').hidden = true;
+    joyRest();
+    hud.prompt(hud.promptKind);
+  }
+  window.addEventListener('touchstart', () => { if (!touchUI) enableTouchUI(); }, { once: true, passive: true });
+
+  joyZone.addEventListener('pointerdown', (e) => {
+    if (joy.id !== null) return;
+    joy.id = e.pointerId;
+    joy.cx = e.clientX;
+    joy.cy = e.clientY;
+    joyZone.setPointerCapture(e.pointerId);
+    joyBase.style.left = e.clientX + 'px';
+    joyBase.style.top = e.clientY + 'px';
+    joyBase.classList.remove('idle');
+    e.preventDefault();
+  });
+  joyZone.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== joy.id) return;
+    let dx = e.clientX - joy.cx, dy = e.clientY - joy.cy;
+    const m = Math.hypot(dx, dy);
+    if (m > JOY_R) { dx *= JOY_R / m; dy *= JOY_R / m; }
+    joy.x = dx / JOY_R;
+    joy.y = dy / JOY_R;
+    joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+  });
+  const joyEnd = (e) => {
+    if (e.pointerId !== joy.id) return;
+    joy.id = null;
+    joy.x = joy.y = 0;
+    joyRest();
+  };
+  joyZone.addEventListener('pointerup', joyEnd);
+  joyZone.addEventListener('pointercancel', joyEnd);
+  window.addEventListener('resize', () => { if (touchUI && joy.id === null) joyRest(); });
+
+  shotPad.querySelectorAll('button').forEach((b) => {
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      b.classList.add('down');
+      if (b.dataset.shot === 'ult') activateUlt();
+      else shotPress(b.dataset.shot);
+    });
+    const up = () => b.classList.remove('down');
+    b.addEventListener('pointerup', up);
+    b.addEventListener('pointercancel', up);
+    b.addEventListener('pointerleave', up);
+  });
+
+  function readInput() {
+    let x = 0, z = 0;
+    if (keys.KeyA || keys.ArrowLeft) x -= 1;
+    if (keys.KeyD || keys.ArrowRight) x += 1;
+    if (keys.KeyW || keys.ArrowUp) z -= 1;
+    if (keys.KeyS || keys.ArrowDown) z += 1;
+    if (joy.id !== null && Math.hypot(joy.x, joy.y) > 0.15) { x += joy.x; z += joy.y; }
+    const m = Math.hypot(x, z);
+    if (m > 1) { x /= m; z /= m; }
+    return { x, z };
+  }
+
+  /* =====================================================================
+     EFFECTS
+     ===================================================================== */
+  const fx = (() => {
+    const ballColor = 0xdcf54a;
+    const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 20, 14),
+      new THREE.MeshStandardMaterial({ color: ballColor, emissive: 0x4a5a00, emissiveIntensity: 0.35, roughness: 0.55 }));
+    ballMesh.castShadow = true;
+    ballMesh.scale.setScalar(1.5);
+    scene.add(ballMesh);
+
+    const flatRing = (r1, r2, color, opacity) => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(r1, r2, 48),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2;
+      m.renderOrder = 2;
+      scene.add(m);
+      return m;
+    };
+
+    const shadow = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.8, 20),
+      new THREE.MeshBasicMaterial({ color: 0x0b1020, transparent: true, opacity: 0.45, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.renderOrder = 3;
+    scene.add(shadow);
+
+    const TRAIL = 9;
+    const trailGeo = new THREE.SphereGeometry(BALL_R * 1.2, 10, 8);
+    const trail = [];
+    for (let i = 0; i < TRAIL; i++) {
+      const m = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ color: ballColor, transparent: true, opacity: 0.32 * (1 - i / TRAIL), depthWrite: false }));
+      m.scale.setScalar(1 - i / (TRAIL + 2));
+      m.visible = false;
+      scene.add(m);
+      trail.push(m);
+    }
+    const history = [];
+
+    const reach = flatRing(REACH - 0.1, REACH, 0xffffff, 0.16);
+    const landing = flatRing(0.45, 0.72, ballColor, 0.9);
+    const landingDot = new THREE.Mesh(new THREE.CircleGeometry(0.16, 16), new THREE.MeshBasicMaterial({ color: ballColor, transparent: true, opacity: 0.9, depthWrite: false }));
+    landingDot.rotation.x = -Math.PI / 2;
+    scene.add(landingDot);
+    const pop = flatRing(0.3, 0.42, 0xffffff, 0);
+    let popT = 1;
+
+    // Ultimate armed: a flame ring at your feet and a flickering column of fire.
+    const auraTex = (() => {
+      const c = document.createElement('canvas');
+      c.width = 4; c.height = 64;
+      const g = c.getContext('2d');
+      const grad = g.createLinearGradient(0, 0, 0, 64);
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(0.6, 'rgba(255,255,255,0.45)');
+      grad.addColorStop(1, 'rgba(255,255,255,1)');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 4, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    const additive = (color, opacity, extra = {}) => new THREE.MeshBasicMaterial(Object.assign({
+      color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    }, extra));
+    const aura = new THREE.Group();
+    const auraRing = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.6, 40), additive(0xff7a1a, 0.85));
+    auraRing.rotation.x = -Math.PI / 2;
+    auraRing.position.y = 0.05;
+    const auraCol = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.5, 6.5, 32, 1, true), additive(0xff5a14, 0.55, { map: auraTex }));
+    aura.add(auraRing, auraCol);
+    aura.visible = false;
+    scene.add(aura);
+
+    return {
+      bounce(p) { pop.position.set(p.x, 0.04, p.z); popT = 0; },
+      update(dt, time) {
+        if (ball.held && state.server) ball.pos.copy(handPos(state.server)).setY(1.9 + Math.sin(time * 3) * 0.08);
+        ballMesh.position.copy(ball.pos);
+        // An ultimate shot glows in its colour, runs larger, with a coloured trail.
+        const LOOKS = {
+          comet:  [0xffb347, 0xff4a00, 1.2, 1.9, 0xffd166, 0xff4a14],
+          curve:  [0xe0b0ff, 0x8a1fe0, 1.0, 1.7, 0xe8c4ff, 0xa040ff],
+          quake:  [0xffd9a0, 0x7a3d0a, 0.8, 1.7, 0xf0c08a, 0x9a5a2b],
+          frost:  [0xe6fbff, 0x2fb6e6, 0.9, 1.7, 0xffffff, 0x7fe3ff],
+          mirage: [0xffb0dc, 0xd1157a, 1.0, 1.7, 0xffd0ea, 0xff5fb0],
+        };
+        const lk = !ball.held && LOOKS[ball.kind] || null;
+        const comet = !!lk;
+        ballMesh.material.color.setHex(lk ? lk[0] : ballColor);
+        ballMesh.material.emissive.setHex(lk ? lk[1] : 0x4a5a00);
+        ballMesh.material.emissiveIntensity = lk ? lk[2] : 0.35;
+        ballMesh.scale.setScalar(lk ? lk[3] : 1.5);
+
+        // Aura: your ultimate's colour while a shot is armed, green during Reborn.
+        aura.visible = isControlled(you) && (you.armed || you.windT > 0);
+        if (aura.visible) {
+          const col = you.armed ? ULT_INFO[myUlt()].hex : 0x7be05a;
+          auraRing.material.color.setHex(col);
+          auraCol.material.color.setHex(col);
+          const f = 0.8 + Math.sin(time * 17) * 0.12 + Math.sin(time * 6.3) * 0.08;
+          aura.position.set(you.pos.x, 0, you.pos.z);
+          auraCol.scale.set(1, f, 1);
+          auraCol.position.y = 3.25 * f;
+          auraCol.rotation.y = time * 2;
+          auraCol.material.opacity = 0.45 + Math.sin(time * 23) * 0.12;
+          auraRing.scale.setScalar(1 + Math.sin(time * 10) * 0.08);
+        }
+        shadow.position.set(ball.pos.x, 0.03, ball.pos.z);
+        const h = Math.max(0, ball.pos.y - BALL_R);
+        shadow.scale.setScalar(1 + h * 0.08);
+        shadow.material.opacity = Math.max(0.12, 0.45 - h * 0.03);
+
+        history.unshift(ball.pos.clone());
+        if (history.length > TRAIL * 2) history.pop();
+        const moving = !ball.held && ball.vel.lengthSq() > 25;
+        trail.forEach((m, i) => {
+          const hp = history[(i + 1) * 2];
+          m.visible = moving && !!hp;
+          if (hp) m.position.copy(hp);
+          m.material.color.setHex(comet ? (i < 3 ? lk[4] : lk[5]) : ballColor);
+          m.scale.setScalar((1 - i / (TRAIL + 2)) * (comet ? lk[3] : 1));
+        });
+
+        reach.visible = !state.demo && !state.autoplay;
+        reach.position.set(you.pos.x, 0.035, you.pos.z);
+        const live = canHit(you);
+        reach.material.color.setHex(live ? ballColor : 0xffffff);
+        reach.material.opacity = live ? 0.6 : 0.16;
+
+        const L = state.landing;
+        const showL = !!L && ball.live && ball.bounces === 0;
+        landing.visible = landingDot.visible = showL;
+        if (showL) {
+          landing.position.set(L.x, 0.04, L.z);
+          landingDot.position.set(L.x, 0.045, L.z);
+          landing.scale.setScalar(1 + Math.sin(time * 10) * 0.08);
+        }
+
+        popT += dt;
+        const k = Math.min(1, popT / 0.35);
+        pop.scale.setScalar(1 + k * 2.4);
+        pop.material.opacity = (1 - k) * 0.8;
+      },
+    };
+  })();
+
+  /* =====================================================================
+     CAMERA  (behind your baseline, follows you sideways, never rotates)
+     ===================================================================== */
+  const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 600);
+  const camPos = new THREE.Vector3();
+  const camLook = new THREE.Vector3();
+  const wantPos = new THREE.Vector3();
+  const wantLook = new THREE.Vector3();
+
+  let orbit = 0.6;   // behind the menu the camera slowly circles the court
+  function cameraGoal() {
+    const aspect = camera.aspect;
+    if (state.demo) {
+      // Tall screens aim below the court so it sits above the menu card.
+      const tall = aspect < 0.8;
+      const r = tall ? 58 : 50;
+      wantPos.set(Math.sin(orbit) * r, tall ? 34 : 22, Math.cos(orbit) * r);
+      wantLook.set(0, tall ? -16 : 1, 0);
+      camera.fov = aspect < 1 ? 62 : 45;
+      camera.updateProjectionMatrix();
+      return;
+    }
+    const hx = you.pos.x * 0.35;
+    if (aspect < 1) {
+      // Tilted so your baseline sits above the thumb controls.
+      wantPos.set(hx, 23, 29);
+      wantLook.set(hx * 0.8, 0, 6);
+      const vfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(26)) / aspect);
+      camera.fov = Math.min(96, Math.max(55, THREE.MathUtils.radToDeg(vfov)));
+    } else {
+      wantPos.set(hx, 16.5, 38);
+      wantLook.set(hx * 0.8, 1, -0.5);
+      const vfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(33)) / aspect);
+      camera.fov = Math.max(52, THREE.MathUtils.radToDeg(vfov));
+    }
+    camera.updateProjectionMatrix();
+  }
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    cameraGoal();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  /* =====================================================================
+     HUD + CARDS
+     ===================================================================== */
+  const hud = (() => {
+    const el = (id) => document.getElementById(id);
+    const zoneEl = el('zone'), zoneName = el('zoneName');
+    const bannerEl = el('banner'), promptEl = el('prompt');
+    let lastZone = '', bannerTimer = null;
+    const api = {
+      promptKind: null,
+      score() {
+        el('scoreA').textContent = state.score.a;
+        el('scoreB').textContent = state.score.b;
+        el('sideA').classList.toggle('serving', state.servingTeam === 'a');
+        el('sideB').classList.toggle('serving', state.servingTeam === 'b');
+        const s = state.score[state.servingTeam], r = state.score[other(state.servingTeam)];
+        el('call').textContent = settings.scoring === 'classic' ? `${s}-${r}-${state.serverNum}` : `${s}-${r}`;
+        el('callWho').textContent = state.server ? (state.server === you ? 'You serve' : `${state.server.name} serves`) : '';
+      },
+      zone() {
+        const x = Math.abs(you.pos.x), z = Math.abs(you.pos.z);
+        let id = 'transition', label = 'Transition zone';
+        if (x > COURT.halfW || z > COURT.halfL) { id = 'out'; label = 'Out of bounds'; }
+        else if (z <= COURT.kitchen) { id = 'kitchen'; label = 'Kitchen'; }
+        else if (z >= COURT.halfL - 4) { id = 'baseline'; label = 'Baseline'; }
+        if (id === lastZone) return;
+        lastZone = id;
+        zoneEl.dataset.zone = id;
+        zoneName.textContent = label;
+      },
+      banner(big, small, team) {
+        if (state.autoplay || state.demo) return;
+        bannerEl.querySelector('b').textContent = big;
+        bannerEl.querySelector('small').textContent = small;
+        bannerEl.dataset.team = team;
+        bannerEl.classList.remove('show');
+        void bannerEl.offsetWidth;
+        bannerEl.classList.add('show');
+        clearTimeout(bannerTimer);
+        bannerTimer = setTimeout(() => bannerEl.classList.remove('show'), 1600);
+      },
+      ult() {
+        const ready = you.meter >= 1 && !you.armed;
+        const chip = el('ultChip'), btn = el('ultBtn');
+        el('ultFill').style.width = (you.armed ? 100 : you.meter * 100).toFixed(0) + '%';
+        el('ultState').textContent = you.armed ? 'Armed: hit the ball!' : ready ? 'Ready: press M' : `Charging ${Math.floor(you.meter * 100)}%`;
+        chip.classList.toggle('ready', ready);
+        chip.classList.toggle('armed', you.armed);
+        btn.style.setProperty('--fill', you.armed ? 1 : you.meter);
+        btn.classList.toggle('ready', ready);
+        btn.classList.toggle('armed', you.armed);
+      },
+      prompt(kind) {
+        api.promptKind = kind;
+        promptEl.hidden = !kind || cards.open();
+        if (kind === 'serve') promptEl.textContent = touchUI ? 'Your serve: tap a shot button' : 'Your serve: press Space (hold ← → to aim)';
+      },
+    };
+    return api;
+  })();
+
+  const cards = (() => {
+    const menuEl = document.getElementById('menu');
+    const pauseEl = document.getElementById('pause');
+    const overEl = document.getElementById('over');
+    const NOTE = {
+      classic: 'Only the serving team scores. Both partners serve before a side out.',
+      rally: 'Every rally scores a point. The serve changes hands after each lost rally.',
+    };
+    const label = () => `${settings.diff.charAt(0).toUpperCase() + settings.diff.slice(1)} rivals · ${settings.mode === 'ultimate' ? 'Ultimate' : 'Classic'} mode`;
+
+    function seg(id, key) {
+      const box = document.getElementById(id);
+      const sync = () => box.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === settings[key])));
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        settings[key] = b.dataset.v;
+        saveSettings();
+        sync();
+        hud.score();
+      });
+      sync();
+    }
+    seg('diffSeg', 'diff');
+    seg('modeSeg', 'mode');
+    const MODE_NOTE = {
+      classic: 'Only you can use your ultimate.',
+      ultimate: 'All four players can use their ultimates, so the rivals and your partner will too.',
+    };
+    const showMode = () => { document.getElementById('modeNote').textContent = MODE_NOTE[settings.mode]; };
+    document.getElementById('modeSeg').addEventListener('click', showMode);
+    showMode();
+    const autoSeg = document.getElementById('autoSeg');
+    const syncAuto = () => autoSeg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.v === 'on') === settings.auto)));
+    autoSeg.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      settings.auto = b.dataset.v === 'on';
+      saveSettings();
+      syncAuto();
+      showAuto();
+    });
+    syncAuto();
+
+    const pickEl = document.getElementById('pick');
+    const PICK_TIME = 10, PICK_HURRY = 5;   // seconds: hurry warning after 5, random pick at 10
+    let pickTimer = null;
+    const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+    const grid = document.getElementById('pickGrid');
+    ROSTER.forEach((r) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pc'; b.dataset.i = r.i;
+      b.innerHTML = `<span class="av" style="background:${hex(r.skin)}" aria-hidden="true"><span class="hr" style="background:${hex(r.hairColor)}"></span><span class="sh" style="background:${hex(r.shirt)}"></span><span class="pd" style="background:${hex(r.paddle)}"></span></span><span>${r.full}</span><span class="pu" style="color:${ULT_INFO[r.ult].color}">${ULT_INFO[r.ult].name}</span>`;
+      b.addEventListener('click', () => api.picked(r.i, false));
+      grid.appendChild(b);
+    });
+    const stopPick = () => { clearInterval(pickTimer); pickTimer = null; };
+
+    function showHistory() {
+      const el = document.getElementById('menuHist');
+      const hist = store.get('kc-history', []).slice(0, 3);
+      const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      el.innerHTML = '<span>Last 3 games</span>' + (hist.length
+        ? '<ol>' + hist.map((g) => {
+          const won = g.winner === 'a', n = g.names || [];
+          return `<li><b class="res ${won ? 'w' : 'l'}">${won ? 'Won' : 'Lost'} ${g.a}–${g.b}</b>` +
+            `<span class="who">${esc(n[0])} (you) &amp; ${esc(n[1])}</span><span class="vs">vs ${esc(n[2])} &amp; ${esc(n[3])}</span></li>`;
+        }).join('') + '</ol>'
+        : '<div class="none">No games yet. Your last 3 results will show here.</div>');
+    }
+
+    const hideAll = () => { stopPick(); menuEl.hidden = true; pauseEl.hidden = true; overEl.hidden = true; pickEl.hidden = true; };
+    const api = {
+      syncAuto,
+      open: () => !menuEl.hidden || !pauseEl.hidden || !overEl.hidden || !pickEl.hidden,
+      picking: () => !pickEl.hidden,
+      // Play: choose one of the 12 within the countdown, or get a random one.
+      choose() {
+        hideAll();
+        pickEl.hidden = false;
+        const end = performance.now() + PICK_TIME * 1000;
+        const countEl = document.getElementById('pickCount'), timeEl = document.getElementById('pickTime');
+        const barEl = document.getElementById('pickBar'), hintEl = document.getElementById('pickHint');
+        const tick = () => {
+          const left = Math.max(0, (end - performance.now()) / 1000);
+          timeEl.textContent = Math.ceil(left);
+          barEl.style.transform = `scaleX(${left / PICK_TIME})`;
+          const hurry = left <= PICK_TIME - PICK_HURRY;
+          countEl.classList.toggle('hurry', hurry);
+          hintEl.textContent = hurry ? 'Hurry! Random player at 0' : 'Pick fast, or you get a random player';
+          if (left <= 0) api.picked(null, true);
+        };
+        tick();
+        pickTimer = setInterval(tick, 100);
+        grid.firstChild.focus({ preventScroll: true });
+      },
+      picked(i, random) {
+        stopPick();
+        setLineup(random ? null : i);
+        api.play();
+        const me = ROSTER[lineup.picks[0]];
+        hud.banner(me.full, (random ? 'Random pick · ' : '') + `with ${players[1].full} vs ${players[2].full} & ${players[3].full}`, 'a');
+      },
+      // Pause and result screens freeze play; the menu keeps its demo running.
+      frozen: () => !pauseEl.hidden || !overEl.hidden,
+      menu() {
+        hideAll();
+        showHistory();
+        menuEl.hidden = false;
+        document.body.classList.add('in-menu');
+        startDemo();
+        hud.prompt(null);
+        document.getElementById('playBtn').focus({ preventScroll: true });
+      },
+      play() {
+        hideAll();
+        document.body.classList.remove('in-menu');
+        state.demo = false;
+        startMatch();
+      },
+      pause() {
+        if (state.demo || state.autoplay || !state.started || state.phase === 'over') return;
+        hideAll();
+        pauseEl.hidden = false;
+        document.getElementById('pauseScore').textContent = `${state.score.a} – ${state.score.b}`;
+        document.getElementById('pauseSub').textContent = label();
+        hud.prompt(hud.promptKind);
+        document.getElementById('resumeBtn').focus({ preventScroll: true });
+      },
+      resume() {
+        pauseEl.hidden = true;
+        hud.prompt(hud.promptKind);
+      },
+      over(winner, a, b) {
+        const title = document.getElementById('overTitle');
+        title.textContent = winner === 'a' ? 'You win!' : 'Rivals win';
+        title.dataset.team = winner;
+        document.getElementById('overScore').textContent = `${a} – ${b}`;
+        document.getElementById('overSub').textContent = label();
+        const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const role = (p) => (p === you ? 'You' : p.team === 'a' ? 'Partner' : 'Rival');
+        document.getElementById('overStats').innerHTML =
+          '<thead><tr><th scope="col">Player</th><th scope="col">Hits</th><th scope="col">Winners</th><th scope="col">Unforced errors</th><th scope="col">Ultimates</th></tr></thead><tbody>' +
+          players.map((p) => `<tr class="${p.team}${p === you ? ' you' : ''}"><td>${esc(p.full)}<small>${role(p)}</small></td><td>${p.stat.hits}</td><td>${p.stat.winners}</td><td>${p.stat.errors}</td><td>${p.stat.ults}</td></tr>`).join('') +
+          '</tbody>';
+        hideAll();
+        overEl.hidden = false;
+        hud.prompt(null);
+        document.getElementById('rematchBtn').focus({ preventScroll: true });
+      },
+      primary() {
+        if (!pickEl.hidden) return;
+        if (!pauseEl.hidden) api.resume();
+        else if (!menuEl.hidden) api.choose();
+        else api.play();
+      },
+      back() {
+        if (!pickEl.hidden) api.menu();
+        else if (!pauseEl.hidden) api.resume();
+        else if (!overEl.hidden) api.menu();
+      },
+    };
+    document.getElementById('playBtn').addEventListener('click', api.choose);
+    document.getElementById('resumeBtn').addEventListener('click', api.resume);
+    document.getElementById('restartBtn').addEventListener('click', api.play);
+    document.getElementById('quitBtn').addEventListener('click', api.menu);
+    document.getElementById('rematchBtn').addEventListener('click', api.play);
+    document.getElementById('overMenuBtn').addEventListener('click', api.menu);
+    document.getElementById('pauseBtn').addEventListener('click', api.pause);
+    return api;
+  })();
+  const autoBtn = document.getElementById('autoBtn');
+  function showAuto() {
+    autoBtn.textContent = 'Auto-swing: ' + (settings.auto ? 'On' : 'Off');
+    autoBtn.setAttribute('aria-pressed', String(settings.auto));
+  }
+  autoBtn.addEventListener('click', () => {
+    settings.auto = !settings.auto;
+    saveSettings();
+    showAuto();
+    cards.syncAuto();
+  });
+  showAuto();
+
+  const soundBtn = document.getElementById('soundBtn');
+  function showSound() {
+    soundBtn.textContent = 'Sound: ' + (settings.sound ? 'On' : 'Off');
+    soundBtn.setAttribute('aria-pressed', String(settings.sound));
+  }
+  soundBtn.addEventListener('click', () => {
+    settings.sound = !settings.sound;
+    saveSettings();
+    showSound();
+  });
+  showSound();
+
+  /* =====================================================================
+     ULTIMATES  (each roster player has their own; ported from the Ultimate Lab)
+     Classic mode: only you use yours. Ultimate mode: all four players do.
+     Every effect works on the user's opponents, whichever side they are on.
+     Shot ultimates change the user's next hit; boosts start at once.
+     Everything is cleared before each serve.
+     ===================================================================== */
+  const CURVE = { accel: 70, after: 0.12 };
+  const WARP = { time: 2.2, ball: 0.7, rivals: 0.45 };
+  const WIND = { time: 6, boost: 1.3 };
+  const FROST = { freeze: 1.05, tire: 0.3 };
+  const QUAKE = { lift: 1.35, turn: [55, 85], keep: 1.0, crack: 3 };
+  const TIDE = { time: 7, turn: 1.05, start: 1 };
+  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
+  const GAS = { time: 3, mishit: 0.55 };
+  const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10 };
+  const GLASS = { time: 4, h: 12, z: 0.35, halfW: COURT.postX / 3 };
+  // Each boost: time left, and the team that used it (its opponents feel it).
+  const fresh = () => ({ t: 0, team: 'a', user: null });
+  const U = { warp: fresh(), glass: fresh(), hole: Object.assign(fresh(), { x: 0, z: -12 }), gas: fresh(), tide: fresh(), cosmo: null, ballT: 0, shot: null };
+  const fakeBall = () => ({ pos: new THREE.Vector3(), vel: new THREE.Vector3(), netted: false, bounces: 0, nb: 0, age: 0, curve: 0, frost: false, quake: 0, alive: false, fade: 0 });
+  const fakes = [fakeBall(), fakeBall()];
+  const ultOf = (p) => ROSTER[p.def.roster].ult;
+  const myUlt = () => ultOf(you);
+  const ultMode = () => settings.mode === 'ultimate';
+  const hits = (e, p) => e.t > 0 && p.team !== e.team;   // is p on the receiving end of boost e?
+  const slowed = (p) => hits(U.warp, p);
+  const flooded = (p) => hits(U.tide, p);
+  const gassed = (p) => hits(U.gas, p);
+  const pulled = (p) => hits(U.hole, p);
+
+  // One physics step plus the ultimate extras: Flaky's bend, Cold Snap's low
+  // bounce and Earthquake's kick off the crack. nb counts floor bounces.
+  function stepB(b, dt) {
+    if (b.curve && !b.nb && b.age > CURVE.after) b.vel.x += b.curve * dt;
+    b.age = (b.age || 0) + dt;
+    const ev = stepBall(b, dt);
+    if (ev === 'bounce') {
+      b.nb = (b.nb || 0) + 1;
+      if (b.nb === 1 && b.frost) b.vel.multiplyScalar(0.5);
+      if (b.nb === 1 && b.quake) {
+        const c = Math.cos(b.quake), s = Math.sin(b.quake), vx = b.vel.x, vz = b.vel.z;
+        b.vel.x = (vx * c - vz * s) * QUAKE.keep;
+        b.vel.z = (vx * s + vz * c) * QUAKE.keep;
+        b.vel.y *= QUAKE.lift;
+        b.quake = 0;
+        b.kicked = true;
+      }
+    }
+    return ev;
+  }
+
+  // High Tide: a player who is moving cannot stop, only turn slowly.
+  function slide(p, tx, tz, maxSpeed, dt) {
+    const sp = Math.hypot(p.vel.x, p.vel.z);
+    if (sp < TIDE.start) { moveTo(p, tx, tz, maxSpeed, dt); return; }
+    let a = Math.atan2(p.vel.z, p.vel.x);
+    const want = Math.atan2(tz - p.pos.z, tx - p.pos.x);
+    const d = Math.atan2(Math.sin(want - a), Math.cos(want - a));
+    a += clamp(d, -TIDE.turn * dt, TIDE.turn * dt);
+    const v = Math.max(sp, Math.min(maxSpeed, sp + 6 * dt));   // can speed up, never slow down
+    p.vel.set(Math.cos(a) * v, 0, Math.sin(a) * v);
+    p.pos.x += p.vel.x * dt;
+    p.pos.z += p.vel.z * dt;
+    const bx = p.pos.x, bz = p.pos.z;
+    clampToSide(p);
+    if (bx !== p.pos.x) p.vel.x = 0;   // bumped the fence or the net: that direction stops
+    if (bz !== p.pos.z) p.vel.z = 0;
+  }
+  const glide = (p, tx, tz, maxSpeed, dt) => (flooded(p) ? slide : moveTo)(p, tx, tz, maxSpeed, dt);
+
+  // Black Hole: players can still run, but the hole drags them to the middle.
+  function holePull(p, dt) {
+    const side = p === teamOf(p.team)[0] ? -1 : 1;
+    const dx = U.hole.x + side * HOLE.spread - p.pos.x, dz = U.hole.z - p.pos.z, d = Math.hypot(dx, dz);
+    if (d > 0.3) {
+      p.pos.x += (dx / d) * Math.min(d, HOLE.pull * dt);
+      p.pos.z += (dz / d) * Math.min(d, HOLE.pull * dt);
+      clampToSide(p);
+    }
+  }
+
+  // Knocked back, frozen or off balance: returns true when that is all the player can do.
+  function status(p, dt, speed) {
+    if (p.knock) {
+      const k = p.knock;
+      k.t += dt;
+      const e = 1 - Math.pow(1 - Math.min(1, k.t / COSMO.knock), 3);
+      p.pos.x = k.fx + (k.tx - k.fx) * e;
+      p.pos.z = k.fz + (k.tz - k.fz) * e;
+      p.vel.set(0, 0, 0);
+      if (k.t >= COSMO.knock) p.knock = null;
+      return true;
+    }
+    if (p.frozen > 0) { p.frozen -= dt; p.vel.set(0, 0, 0); return true; }   // Cold Snap ice block
+    if (p.stun > 0) {
+      p.stun -= dt;
+      if (flooded(p) && Math.hypot(p.vel.x, p.vel.z) >= TIDE.start) slide(p, p.pos.x + p.vel.x, p.pos.z + p.vel.z, speed, dt);
+      else { p.vel.multiplyScalar(Math.exp(-dt * 8)); p.pos.addScaledVector(p.vel, dt); clampToSide(p); }
+      return true;
+    }
+    return false;
+  }
+
+  // Before each serve: every effect ends (meters are kept).
+  function resetUlts() {
+    for (const k of ['warp', 'glass', 'hole', 'gas', 'tide']) U[k].t = 0;
+    U.cosmo = null; U.ballT = 0; U.shot = null;
+    fakes.forEach((f) => { f.alive = false; f.fade = 0; });
+    state.chaseAll = null;
+    state.firewallBy = null;
+    Object.assign(ball, { kind: 'plain', curve: 0, frost: false, quake: 0, nb: 0, age: 0, blocked: false, kicked: false });
+    players.forEach((p) => { p.frozen = 0; p.stun = 0; p.knock = null; p.fooled = false; p.fake = null; p.windT = 0; });
+  }
+
+  // Anyone using their ultimate: a shot arms their next hit; a boost starts now.
+  function useUlt(p) {
+    const id = ultOf(p), info = ULT_INFO[id];
+    if (info.kind === 'Shot') { p.armed = true; if (p === you) sfx.arm(); }
+    else { if (!boostUlt(id, p)) return false; p.meter = 0; }
+    if (p.stat) p.stat.ults++;
+    sfx.callOut(info.name + '!');   // whoever uses an ultimate calls out its name
+    hud.banner(info.name + '!', p === you ? 'Ultimate' : `${p.full} · Ultimate`, p.team);
+    hud.ult();
+    return true;
+  }
+
+  // Computer players in Ultimate mode: a boost goes off just after their team
+  // hits; a shot ultimate is used on their own next hit (see hitBall).
+  function aiUlt(p) {
+    if (!ultMode() || isControlled(p) || p.meter < 1 || state.phase !== 'rally' || !ball.live) return;
+    if (ULT_INFO[ultOf(p)].kind === 'Shot') return;
+    if (ball.lastTeam !== p.team || state.sinceHit > 0.4) return;
+    useUlt(p);
+  }
+
+  // Boost ultimates. Returns false if that effect is already running.
+  function boostUlt(id, p) {
+    const T = p.team, opp = teamOf(other(T));
+    const start = (k, time) => { if (U[k].t > 0) return false; Object.assign(U[k], { t: time, team: T, user: p }); return true; };
+    if (id === 'warp') { if (!start('warp', WARP.time)) return false; usfx.warp(); }
+    else if (id === 'wind') { if (p.windT > 0) return false; p.windT = WIND.time; p.stamina = 1; usfx.wind(); }
+    else if (id === 'glass') { if (!start('glass', GLASS.time)) return false; usfx.glass(); }
+    else if (id === 'tide') { if (!start('tide', TIDE.time)) return false; usfx.tide(); }
+    else if (id === 'gas') { if (!start('gas', GAS.time)) return false; usfx.gas(); }
+    else if (id === 'cosmo') {
+      if (U.cosmo) return false;
+      const dist = (r) => Math.hypot(r.pos.x - p.pos.x, r.pos.z - p.pos.z);
+      const near = dist(opp[0]) <= dist(opp[1]) ? opp[0] : opp[1];
+      const dir = -sideSign(T);
+      U.cosmo = { t: 0, user: p, dir, x0: p.pos.x, z0: p.pos.z, z: p.pos.z, near, hit: new Set() };
+      state.shake = 0.3;
+      usfx.cosmo();
+    } else if (id === 'hole') {
+      if (!start('hole', HOLE.time)) return false;
+      U.hole.x = clamp((opp[0].pos.x + opp[1].pos.x) / 2, -8, 8);
+      U.hole.z = sideSign(other(T)) * clamp(Math.abs((opp[0].pos.z + opp[1].pos.z) / 2), 9, 18);
+      usfx.hole();
+    }
+    return true;
+  }
+
+  // Shot ultimates: the user's hit becomes a special shot into the other court.
+  function shotUlt(kind, P, p) {
+    const rv = teamOf(other(p.team)), s = sideSign(other(p.team));
+    let v, revealAt = null;
+    if (kind === 'curve') {
+      const side = (rv[0].pos.x + rv[1].pos.x) / 2 > 0 ? -1 : 1;
+      const tx = side * rand(5, 8), tz = s * rand(13, 18);
+      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 45, 0.45);
+      // x is linear in the starting sideways speed: work out the bend alone,
+      // then aim so the bent path lands on target.
+      let y = P.y, vy = v.y, x = 0, vx = 0, age = 0, n = 0;
+      while (y >= BALL_R && n < 1200) {
+        if (age > CURVE.after) vx += side * CURVE.accel * STEP;
+        age += STEP; vy -= G * STEP; y += vy * STEP; x += vx * STEP; n++;
+      }
+      v.x = (tx - P.x - x) / (n * STEP);
+      ball.curve = side * CURVE.accel;
+      usfx.curve();
+    } else if (kind === 'frost') {
+      const near = Math.abs(rv[0].pos.z) <= Math.abs(rv[1].pos.z) ? rv[0] : rv[1];
+      const tx = clamp(near.pos.x + rand(-2.5, 2.5), -8, 8), tz = s * rand(3, 5);
+      v = solveShot(P, tx, tz, 1.15, 0.5);
+      const d = (r) => Math.hypot(r.pos.x - tx, r.pos.z - tz);
+      const victim = d(rv[0]) <= d(rv[1]) ? rv[0] : rv[1];
+      victim.frozen = FROST.freeze;
+      rv.forEach((r) => { r.stamina = Math.max(0, r.stamina - FROST.tire); });
+      usfx.frost();
+    } else if (kind === 'quake') {
+      const tx = rand(-4, 4), tz = s * rand(11, 15);
+      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 45, 0.4);
+      state.shake = 0.5;
+      usfx.rumble();
+    } else if (kind === 'mirage') {
+      const xs = [-8, 0, 8].map((x) => x + rand(-1, 1)).sort(() => Math.random() - 0.5);
+      const t = (x, z) => Math.hypot(x - P.x, z - P.z) / 50;
+      const tz = s * rand(13, 18);
+      v = solveShot(P, xs[0], tz, t(xs[0], tz), 0.4);
+      fakes.forEach((f, i) => {
+        const fz = s * rand(13, 18);
+        f.pos.copy(P);
+        f.vel.copy(solveShot(P, xs[i + 1], fz, t(xs[i + 1], fz), 0.4));
+        Object.assign(f, { netted: false, fenced: false, bounces: 0, nb: 0, age: 0, alive: true, fade: 1 });
+      });
+      usfx.mirage();
+    }
+    ball.vel.copy(v);
+    ball.frost = kind === 'frost';
+    if (kind === 'quake') {
+      const side = ball.pos.x + ball.vel.x * 0.6 > 0 ? -1 : 1;   // kick toward the open side
+      ball.quake = side * THREE.MathUtils.degToRad(rand(QUAKE.turn[0], QUAKE.turn[1]));
+    }
+    const smp = predict(3.5, ball, false);
+    const land = smp.find((q) => q.b >= 1) || smp[smp.length - 1];
+    if (kind === 'quake' && land) {
+      ufx.crack(land);
+      rv.forEach((r) => { r.stun = Math.max(r.stun || 0, land.t); });   // off balance until it lands
+    }
+    if (kind === 'mirage' && land) {
+      revealAt = Math.max(0.2, land.t - 0.15);
+      rv.forEach((r) => { r.fake = [ball, ...fakes][Math.floor(Math.random() * 3)]; r.fooled = false; });
+    }
+    U.shot = { kind, team: p.team, revealed: false, crossAt: null, revealAt };
+  }
+
+  // Every physics step: fakes, the Firewall, and the moments players read a trick.
+  function ultStep(pz, ev) {
+    fakes.forEach((f) => { if (f.alive) stepB(f, STEP); });
+    if (ev === 'bounce' && ball.frost && ball.nb === 1) ufx.frostBurst(ball.pos);
+    if (!ball.live || state.phase !== 'rally') return;
+    const g = U.glass;
+    if (g.t > 0 && ball.lastTeam !== g.team && !ball.netted) {
+      const s = sideSign(g.team);
+      if (pz * s < GLASS.z && ball.pos.z * s >= GLASS.z && Math.abs(ball.pos.x) < GLASS.halfW + BALL_R && ball.pos.y < GLASS.h) {
+        ball.pos.z = s * (GLASS.z - 0.01);
+        ball.vel.z = -s * Math.abs(ball.vel.z) * 0.75;
+        ball.vel.x *= 0.85;
+        ball.blocked = true;
+        ufx.glassHit(ball.pos);
+        usfx.glassHit();
+        state.shake = 0.25;
+        state.firewallBy = g.user;
+        pointTo(g.team, 'FIREWALL');
+        return;
+      }
+    }
+    const sh = U.shot;
+    if (!sh || ball.lastTeam !== sh.team || ball.kind !== sh.kind || sh.revealed) return;
+    const rv = teamOf(other(sh.team));
+    if (sh.kind === 'quake' && ball.kicked) {
+      ball.kicked = false;
+      sh.revealed = true;
+      state.shake = 0.4;
+      ufx.quakeBurst(ball.pos);
+      usfx.crack();
+      rv.forEach((r) => { r.stun = Math.max(r.stun || 0, 0.15); });
+      replan();
+    } else if (sh.kind === 'curve') {
+      if (sh.crossAt == null && (pz > 0) !== (ball.pos.z > 0)) sh.crossAt = U.ballT;
+      if (sh.crossAt != null && U.ballT > sh.crossAt + 0.2) { sh.revealed = true; replan(); }
+    } else if (sh.kind === 'mirage') {
+      if (U.ballT >= sh.revealAt) {
+        sh.revealed = true;
+        fakes.forEach((f) => { if (f.alive) ufx.poof(f.pos); f.alive = false; });
+        usfx.fake();
+        replan();
+        return;
+      }
+      for (const r of rv) {
+        const f = r.fake;
+        if (isControlled(r) || r.fooled || !f || f === ball || !f.alive || f.pos.y > 6) continue;
+        if (Math.hypot(f.pos.x - r.pos.x, f.pos.z - r.pos.z) < 2.2) {
+          r.fooled = true;
+          r.stun = 0.35;
+          startStroke(r, pickStroke(r, f.pos.x, f.pos.y), 0.05);
+          usfx.fake();
+        }
+      }
+    }
+  }
+
+  // Timers, computer players' ultimates, and the Cosmo ring flying out.
+  function ultUpdate(dt) {
+    for (const k of ['warp', 'glass', 'hole', 'gas', 'tide']) if (U[k].t > 0) U[k].t = Math.max(0, U[k].t - dt);
+    for (const p of players) {
+      if (p.windT > 0) p.windT = Math.max(0, p.windT - dt);
+      aiUlt(p);
+    }
+    const c = U.cosmo;
+    if (!c) return;
+    c.t += dt;
+    if (c.t < COSMO.windup) { c.x0 = c.user.pos.x; c.z0 = c.user.pos.z; c.z = c.z0; }
+    else c.z = c.z0 + c.dir * COSMO.speed * (c.t - COSMO.windup);
+    const rv = teamOf(other(c.user.team));
+    rv.forEach((r) => {
+      if (c.hit.has(r) || (c.z - r.pos.z) * c.dir < 0) return;
+      c.hit.add(r);
+      const fx0 = r.pos.x, fz0 = r.pos.z;
+      let tx = fx0, tz = fz0;
+      if (r === c.near) tz = sideSign(r.team) * COURT.halfL;                                     // back to the baseline
+      else tx = (Math.abs(fx0) > 0.3 ? Math.sign(fx0) : (r === rv[0] ? -1 : 1)) * COURT.halfW;   // out to the sideline
+      r.knock = { fx: fx0, fz: fz0, tx, tz, t: 0 };
+      r.stun = Math.max(r.stun || 0, COSMO.knock + 0.1);
+      r.stamina = Math.min(r.stamina, COSMO.fatigue);
+      ufx.cosmoHit(r);
+    });
+    if (Math.abs(c.z) > AREA.halfL) U.cosmo = null;
+  }
+
+  /* ---------- ultimate sounds ---------- */
+  const usfx = (() => {
+    let ctx = null, noiseBuf = null;
+    function unlock() {
+      if (!ctx) {
+        try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+        noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        const d = noiseBuf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+    }
+    ['pointerdown', 'keydown', 'touchstart'].forEach((e) => window.addEventListener(e, unlock, { passive: true }));
+    const ok = () => ctx && settings.sound && ctx.state === 'running' && !state.demo && !state.autoplay;
+    function env(g, t, gain, attack, dur) {
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    }
+    function noise(t, dur, gain, freq, q, type = 'bandpass', attack = 0.003) {
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+      const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+      const g = ctx.createGain(); env(g, t, gain, attack, dur);
+      src.connect(f).connect(g).connect(ctx.destination);
+      src.start(t); src.stop(t + dur + 0.05);
+      return f;
+    }
+    function tone(t, f0, f1, dur, gain, type = 'sine', attack = 0.004) {
+      const o = ctx.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+      const g = ctx.createGain(); env(g, t, gain, attack, dur);
+      o.connect(g).connect(ctx.destination);
+      o.start(t); o.stop(t + dur + 0.05);
+    }
+    const play = (fn) => () => { if (ok()) fn(ctx.currentTime); };
+    return {
+      curve: play((t) => { tone(t + 0.05, 300, 900, 0.5, 0.12, 'sawtooth', 0.08); tone(t + 0.05, 305, 880, 0.5, 0.08, 'triangle', 0.08); }),
+      mirage: play((t) => { [0, 0.06, 0.12].forEach((d, i) => tone(t + d, 1200 + i * 400, 1000 + i * 380, 0.35, 0.1, 'sine')); }),
+      warp: play((t) => { tone(t, 1100, 110, 0.9, 0.2, 'sine', 0.02); tone(t, 70, 55, 2.8, 0.18, 'sine', 0.3); }),
+      wind: play((t) => {
+        noise(t, 0.8, 0.3, 400, 0.8, 'bandpass', 0.2).frequency.exponentialRampToValueAtTime(2600, t + 0.7);
+        [0, 0.1, 0.2].forEach((d, i) => tone(t + d, 440 * (1 + i * 0.25), 880 * (1 + i * 0.25), 0.3, 0.09, 'triangle'));
+      }),
+      frost: play((t) => { [1760, 2350, 2960, 3520].forEach((f, i) => tone(t + i * 0.05, f, f * 0.98, 0.5, 0.06, 'sine', 0.002)); }),
+      tide: play((t) => {
+        noise(t, 1.6, 0.45, 300, 0.6, 'lowpass', 0.5).frequency.exponentialRampToValueAtTime(1200, t + 1.2);
+        [0.3, 0.45, 0.62, 0.8].forEach((d, i) => tone(t + d, 500 + i * 120, 900 + i * 160, 0.08, 0.09, 'sine', 0.005));
+      }),
+      splash: play((t) => { noise(t, 0.18, 0.18, 1800, 0.8); }),
+      cosmo: play((t) => {
+        [523, 659, 784, 1047].forEach((f, i) => tone(t + 0.05 + i * 0.04, f, f, 1.1, 0.07, 'triangle', 0.08));
+        noise(t + 0.1, 0.8, 0.4, 600, 0.7, 'bandpass', 0.1).frequency.exponentialRampToValueAtTime(3200, t + 0.8);
+      }),
+      cosmoHit: play((t) => { noise(t, 0.15, 0.5, 900, 1); tone(t, 160, 60, 0.35, 0.35, 'sine'); tone(t, 1568, 1568, 0.5, 0.05, 'sine', 0.002); }),
+      gas: play((t) => {
+        noise(t, 1.4, 0.35, 2600, 0.6, 'bandpass', 0.15).frequency.exponentialRampToValueAtTime(900, t + 1.3);
+        [0, 0.18, 0.33, 0.5].forEach((d, i) => tone(t + d, 300 + i * 70, 520 + i * 90, 0.12, 0.08, 'sine', 0.01));
+      }),
+      hole: play((t) => { tone(t, 420, 38, 1.3, 0.35, 'sine', 0.03); tone(t, 210, 30, 1.3, 0.12, 'sawtooth', 0.05); noise(t, 2.2, 0.35, 160, 0.7, 'lowpass', 0.3); }),
+      glass: play((t) => {
+        noise(t, 1.2, 0.55, 300, 0.6, 'lowpass', 0.15).frequency.exponentialRampToValueAtTime(2200, t + 0.5);
+        tone(t, 70, 45, 1.0, 0.3, 'sine', 0.1);
+        for (let i = 0; i < 8; i++) noise(t + 0.2 + Math.random() * 0.9, 0.03, 0.18, 3000 + Math.random() * 2000, 2);
+      }),
+      glassHit: play((t) => {
+        noise(t, 0.5, 0.6, 900, 0.7, 'bandpass', 0.01).frequency.exponentialRampToValueAtTime(300, t + 0.45);
+        tone(t, 120, 50, 0.3, 0.3, 'sine');
+        for (let i = 0; i < 6; i++) noise(t + Math.random() * 0.4, 0.03, 0.22, 3500 + Math.random() * 2500, 2);
+      }),
+      rumble: play((t) => { noise(t, 1.0, 0.6, 140, 0.7, 'lowpass', 0.05); tone(t, 55, 35, 1.0, 0.45, 'sine', 0.05); }),
+      crack: play((t) => { noise(t, 0.12, 0.6, 1400, 0.9); noise(t + 0.02, 0.5, 0.5, 220, 0.8, 'lowpass'); tone(t, 90, 40, 0.4, 0.4, 'sine'); }),
+      fake: play((t) => { noise(t, 0.12, 0.2, 3000, 2); tone(t, 900, 300, 0.15, 0.08, 'square'); }),
+    };
+  })();
+
+  /* ---------- ultimate effects ---------- */
+  const ufx = (() => {
+    const additive = (color, opacity, extra = {}) => new THREE.MeshBasicMaterial(Object.assign({
+      color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    }, extra));
+    const flatRing = (r1, r2, color, opacity, add) => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(r1, r2, 48),
+        add ? additive(color, opacity) : new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2;
+      m.renderOrder = 2;
+      scene.add(m);
+      return m;
+    };
+
+    // Mirage fakes: pink balls with shadows that fade out when they vanish.
+    const fakeVis = fakes.map(() => {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 16, 12),
+        new THREE.MeshStandardMaterial({ color: 0xffb0dc, emissive: 0xd1157a, emissiveIntensity: 1.0, roughness: 0.55, transparent: true }));
+      mesh.scale.setScalar(1.7);
+      const sh = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.8, 20), new THREE.MeshBasicMaterial({ color: 0x0b1020, transparent: true, opacity: 0.4, depthWrite: false }));
+      sh.rotation.x = -Math.PI / 2; sh.renderOrder = 3;
+      mesh.visible = sh.visible = false;
+      scene.add(mesh, sh);
+      return { mesh, sh };
+    });
+
+    // Flaky: a spinning ring around the ball.
+    const swirl = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.06, 8, 32), additive(0xc45cff, 0.9));
+    swirl.visible = false;
+    scene.add(swirl);
+
+    // Time Warp: a clock face that sweeps round under you.
+    const clockFace = new THREE.Group();
+    const clockRim = new THREE.Mesh(new THREE.RingGeometry(2.1, 2.3, 64), additive(0x4fd1c5, 0.8));
+    const hand = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 2.0), additive(0x9ff5ec, 0.9));
+    hand.position.y = 1.0;
+    const handPivot = new THREE.Group(); handPivot.add(hand);
+    clockFace.add(clockRim, handPivot);
+    for (let i = 0; i < 12; i++) {
+      const tick = new THREE.Mesh(new THREE.PlaneGeometry(0.1, i % 3 ? 0.25 : 0.45), additive(0x4fd1c5, 0.8));
+      const a = (i / 12) * Math.PI * 2;
+      tick.position.set(Math.sin(a) * 1.85, Math.cos(a) * 1.85, 0);
+      tick.rotation.z = -a;
+      clockFace.add(tick);
+    }
+    clockFace.rotation.x = -Math.PI / 2;
+    clockFace.visible = false;
+    scene.add(clockFace);
+
+    // Reborn: green sparks rising around you.
+    const sparkGeo = new THREE.SphereGeometry(0.09, 6, 4);
+    const sparks = Array.from({ length: 18 }, () => {
+      const m = new THREE.Mesh(sparkGeo, additive(0xb5ff8a, 0.9));
+      m.userData = { a: Math.random() * 6.28, r: 0.9 + Math.random() * 0.8, y: Math.random() * 6, s: 2 + Math.random() * 2.5 };
+      m.visible = false; scene.add(m);
+      return m;
+    });
+
+    // Cold Snap: an ice block on the frozen rival, a frost ring where it lands.
+    const ice = [0, 1, 2, 3].map(() => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.4, 3.2, 6), new THREE.MeshStandardMaterial({
+        color: 0xbff4ff, transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.1, emissive: 0x2fb6e6, emissiveIntensity: 0.35, depthWrite: false,
+      }));
+      m.visible = false; scene.add(m);
+      return m;
+    });
+    const frostRing = flatRing(0.4, 1.1, 0x7fe3ff, 0, true);
+    let frostT = 9;
+
+    const pops = Array.from({ length: 4 }, () => ({ m: flatRing(0.3, 0.42, 0xffffff, 0), t: 9 }));
+    let popI = 0;
+    function pop(p, color, y = 0.04) {
+      const e = pops[popI++ % pops.length];
+      e.m.position.set(p.x, y, p.z); e.m.material.color.setHex(color); e.t = 0;
+      if (y > 0.1) { e.m.rotation.set(0, 0, 0); e.m.lookAt(camera.position); } else e.m.rotation.set(-Math.PI / 2, 0, 0);
+    }
+
+    // Firewall: layered sheets of flame over the middle third of the net.
+    const flameTex = (() => {
+      const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+      const g = c.getContext('2d');
+      for (let i = 0; i < 18; i++) {
+        const x = Math.random() * 128, w = 10 + Math.random() * 22, h = 90 + Math.random() * 160;
+        const grad = g.createLinearGradient(0, 256, 0, 256 - h);
+        grad.addColorStop(0, 'rgba(255,210,70,0.9)');
+        grad.addColorStop(0.25, 'rgba(255,120,20,0.8)');
+        grad.addColorStop(0.6, 'rgba(220,40,0,0.55)');
+        grad.addColorStop(1, 'rgba(150,10,0,0)');
+        g.fillStyle = grad;
+        for (const dx of [-128, 0, 128]) {
+          g.beginPath();
+          g.moveTo(x + dx - w, 256);
+          g.quadraticCurveTo(x + dx - w * 0.9, 256 - h * 0.45, x + dx + (Math.random() - 0.5) * 8, 256 - h);
+          g.quadraticCurveTo(x + dx + w * 0.9, 256 - h * 0.45, x + dx + w, 256);
+          g.fill();
+        }
+      }
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = THREE.RepeatWrapping;
+      return t;
+    })();
+    const wall = new THREE.Group();
+    const flameMat = (repeat, opacity) => {
+      const map = flameTex.clone(); map.needsUpdate = true; map.repeat.set(repeat, 1);
+      return new THREE.MeshBasicMaterial({ map, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
+    };
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(GLASS.halfW * 2, GLASS.h), flameMat(2, 0.9));
+    pane.position.y = GLASS.h / 2; pane.renderOrder = 4;
+    const flames2 = new THREE.Mesh(new THREE.PlaneGeometry(GLASS.halfW * 2, GLASS.h * 0.8), flameMat(3, 0.75));
+    flames2.position.set(0, GLASS.h * 0.4, 0.15); flames2.renderOrder = 5;
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(GLASS.halfW * 2 + 1.2, GLASS.h + 1), new THREE.MeshBasicMaterial({ color: 0xff3a00, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide }));
+    glow.position.set(0, GLASS.h / 2, -0.1);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(GLASS.halfW * 2, 0.3, 0.4), additive(0xff8a20, 0.7));
+    base.position.y = 0.18;
+    const frameMat = additive(0xff6a1f, 0.9);
+    wall.add(glow, pane, flames2, base);
+    for (const s of [-1, 1]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.16, GLASS.h, 0.16), frameMat);
+      side.position.set(s * GLASS.halfW, GLASS.h / 2, 0);
+      wall.add(side);
+    }
+    const embers = Array.from({ length: 28 }, () => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 4), additive(Math.random() < 0.5 ? 0xffc04a : 0xff5a1a, 0.95));
+      m.userData = { x: (Math.random() - 0.5) * GLASS.halfW * 2, y: Math.random() * GLASS.h * 1.2, s: 2 + Math.random() * 3, ph: Math.random() * 6.28 };
+      wall.add(m);
+      return m;
+    });
+    wall.position.z = GLASS.z;
+    wall.visible = false;
+    scene.add(wall);
+    const ripples = Array.from({ length: 2 }, () => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.6, 40), additive(0xffb040, 0));
+      m.position.z = GLASS.z + 0.02; scene.add(m);
+      return { m, t: 9 };
+    });
+    let rippleI = 0, glassFlash = 0;
+
+    // Earthquake: a jagged crack decal, and chunks of court kicked up.
+    const crackCanvas = document.createElement('canvas');
+    crackCanvas.width = crackCanvas.height = 256;
+    const crackTex = new THREE.CanvasTexture(crackCanvas);
+    function drawCrack() {
+      const g = crackCanvas.getContext('2d');
+      g.clearRect(0, 0, 256, 256);
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      const branch = (x, y, a, len, w, depth) => {
+        const pts = [[x, y]];
+        for (let i = 0; i < 6; i++) {
+          a += (Math.random() - 0.5) * 0.9;
+          x += Math.cos(a) * len / 6; y += Math.sin(a) * len / 6;
+          pts.push([x, y]);
+        }
+        for (const [col, extra] of [['rgba(255,190,120,0.55)', 3], ['#1b120c', 0]]) {
+          g.strokeStyle = col; g.lineWidth = w + extra;
+          g.beginPath(); pts.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py))); g.stroke();
+        }
+        if (depth > 0) for (let k = 0; k < 2; k++) {
+          const [bx, by] = pts[2 + Math.floor(Math.random() * 4)];
+          branch(bx, by, a + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.7), len * 0.55, w * 0.6, depth - 1);
+        }
+      };
+      for (let i = 0; i < 5; i++) branch(128, 128, (i / 5) * Math.PI * 2 + Math.random() * 0.6, 95 + Math.random() * 25, 5, 2);
+      g.fillStyle = '#1b120c'; g.beginPath(); g.arc(128, 128, 9, 0, Math.PI * 2); g.fill();
+      crackTex.needsUpdate = true;
+    }
+    const crackDecal = new THREE.Mesh(new THREE.PlaneGeometry(11, 11), new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, depthWrite: false }));
+    crackDecal.rotation.x = -Math.PI / 2;
+    crackDecal.renderOrder = 1;
+    crackDecal.visible = false;
+    scene.add(crackDecal);
+    let crackT = 99;
+    const chunks = Array.from({ length: 12 }, (_, i) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.22), stdMat(i % 3 ? 0x2a56c6 : 0x8a6a4a, 0.9));
+      m.visible = false; scene.add(m);
+      return { m, v: new THREE.Vector3(), spin: new THREE.Vector3() };
+    });
+    const dust = flatRing(0.4, 1.4, 0xd9b38a, 0, false);
+    let dustT = 9;
+
+    // High Tide: water over the rival court with two small fish.
+    const waterTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d');
+      g.fillStyle = 'rgba(40,150,230,0.55)'; g.fillRect(0, 0, 128, 128);
+      g.strokeStyle = 'rgba(220,245,255,0.55)'; g.lineWidth = 2;
+      for (let y = 8; y < 128; y += 16) {
+        g.beginPath();
+        for (let x = 0; x <= 128; x += 4) g.lineTo(x, y + Math.sin((x / 128) * Math.PI * 4 + y) * 3);
+        g.stroke();
+      }
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(4, 4);
+      return t;
+    })();
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(COURT.halfW * 2 + 1, COURT.halfL + 0.5),
+      new THREE.MeshBasicMaterial({ map: waterTex, transparent: true, opacity: 0, depthWrite: false }));
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(0, 0.04, -COURT.halfL / 2 - 0.25);
+    water.renderOrder = 1;
+    water.visible = false;
+    scene.add(water);
+    function makeFish(color) {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.1 });
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 10), mat);
+      body.scale.set(1, 0.55, 0.38);
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.45, 4), mat);
+      tail.rotation.z = Math.PI / 2; tail.position.x = -0.58; tail.scale.z = 0.4;
+      const fin = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 4), mat);
+      fin.position.set(0, 0.3, 0); fin.scale.z = 0.4;
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+      for (const s of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), eyeMat);
+        eye.position.set(0.3, 0.07, s * 0.16);
+        g.add(eye);
+      }
+      g.add(body, tail, fin);
+      g.userData = { tail };
+      g.visible = false;
+      scene.add(g);
+      return g;
+    }
+    const fish = [
+      { m: makeFish(0xff8a3d), cx: -5, cz: -8, r: 2.6, sp: 1.3, ph: 0, jumpEvery: 2.3 },
+      { m: makeFish(0x2ec4b6), cx: 5, cz: -15, r: 3.0, sp: -1.1, ph: 2, jumpEvery: 2.9 },
+    ];
+
+    // Cosmo: a giant spinning golden ring with sparks in its wake.
+    const cosmoRing = new THREE.Group();
+    const goldRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.07, 12, 72),
+      new THREE.MeshStandardMaterial({ color: 0xffc23d, emissive: 0xffa000, emissiveIntensity: 1.1, metalness: 0.6, roughness: 0.25 }));
+    const glowRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.16, 8, 72), additive(0xffe08a, 0.55));
+    const innerRing = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 72), additive(0xfff3c0, 0.3));
+    cosmoRing.add(goldRing, glowRing, innerRing);
+    cosmoRing.visible = false;
+    scene.add(cosmoRing);
+    const goldSparks = Array.from({ length: 40 }, () => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 4), additive(0xffd76a, 0.9));
+      m.visible = false; m.userData = { life: 0, v: new THREE.Vector3() }; scene.add(m);
+      return m;
+    });
+    let sparkI = 0;
+    const goldBursts = Array.from({ length: 2 }, () => ({ m: flatRing(0.4, 0.7, 0xffc23d, 0, true), t: 9 }));
+    let burstI = 0;
+
+    // Poison: purple puffs and bubbles around each rival.
+    const puffTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d');
+      const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grad.addColorStop(0, 'rgba(255,255,255,0.95)'); grad.addColorStop(0.5, 'rgba(255,255,255,0.45)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    const clouds = [0, 1].map(() => {
+      const gasCloud = new THREE.Group();
+      const puffs = Array.from({ length: 18 }, (_, i) => {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: [0x9b3fd0, 0xb86be0, 0x7a2aa8, 0xa8d06a][i % 4 === 3 && i > 10 ? 3 : i % 3], transparent: true, opacity: 0.55, depthWrite: false }));
+        s.userData = { a: Math.random() * 6.28, r: 0.6 + Math.random() * 1.4, y: 0.6 + Math.random() * 5, size: 2.8 + Math.random() * 2.2, sp: 0.4 + Math.random() * 0.8, ph: Math.random() * 6.28 };
+        gasCloud.add(s);
+        return s;
+      });
+      const bubbles = Array.from({ length: 10 }, () => {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), additive(0xd58cff, 0.8));
+        m.userData = { a: Math.random() * 6.28, r: Math.random() * 1.6, y: Math.random() * 6, s: 1 + Math.random() * 1.5 };
+        gasCloud.add(m);
+        return m;
+      });
+      gasCloud.visible = false;
+      scene.add(gasCloud);
+      return { gasCloud, puffs, bubbles };
+    });
+
+    // Black Hole: a dark core, spinning disks, a ground swirl and dust falling in.
+    const hole = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.SphereGeometry(1.05, 32, 20), new THREE.MeshBasicMaterial({ color: 0x050208 }));
+    core.position.y = HOLE.y;
+    const disks = [[1.35, 2.9, 0xb27bff, 0.75], [1.2, 2.2, 0xffb36b, 0.6]].map(([a, b, col, op]) => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(a, b, 64, 1), additive(col, op));
+      m.position.y = HOLE.y;
+      return m;
+    });
+    const halo = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.55, 64), additive(0xe7d6ff, 0.8));
+    halo.position.y = HOLE.y;
+    const holeSwirl = new THREE.Mesh(new THREE.RingGeometry(0.8, 4.5, 48, 1, 0, Math.PI * 1.6), additive(0x7a3dff, 0.35));
+    holeSwirl.rotation.x = -Math.PI / 2; holeSwirl.position.y = 0.06;
+    const pit = new THREE.Mesh(new THREE.CircleGeometry(1.6, 40), new THREE.MeshBasicMaterial({ color: 0x0b0614, transparent: true, opacity: 0.55, depthWrite: false }));
+    pit.rotation.x = -Math.PI / 2; pit.position.y = 0.05;
+    hole.add(core, ...disks, halo, holeSwirl, pit);
+    const motes = Array.from({ length: 36 }, () => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 4), additive(Math.random() < 0.5 ? 0xd9c4ff : 0xffc98f, 0.9));
+      m.userData = { a: Math.random() * 6.28, r: 1.5 + Math.random() * 4, y: 0.4 + Math.random() * 11, s: 0.8 + Math.random() };
+      hole.add(m);
+      return m;
+    });
+    hole.visible = false;
+    scene.add(hole);
+
+    return {
+      poof(p) { pop(p, 0xff5fb0, p.y); },
+      glassHit(p) { const r = ripples[rippleI++ % ripples.length]; r.m.position.set(p.x, p.y, GLASS.z + 0.02); r.t = 0; glassFlash = 1; },
+      crack(p) { drawCrack(); crackDecal.position.set(p.x, 0.022, p.z); crackDecal.rotation.z = Math.random() * Math.PI * 2; crackT = 0; },
+      quakeBurst(p) {
+        chunks.forEach((c) => {
+          c.m.position.set(p.x + rand(-0.6, 0.6), 0.1, p.z + rand(-0.6, 0.6));
+          c.v.set(rand(-5, 5), rand(6, 12), rand(-5, 5));
+          c.spin.set(rand(-9, 9), rand(-9, 9), rand(-9, 9));
+          c.m.visible = true;
+        });
+        dust.position.set(p.x, 0.05, p.z); dustT = 0;
+      },
+      frostBurst(p) { frostRing.position.set(p.x, 0.06, p.z); frostT = 0; },
+      cosmoHit(r) { const b = goldBursts[burstI++ % goldBursts.length]; b.m.position.set(r.pos.x, 0.06, r.pos.z); b.t = 0; usfx.cosmoHit(); },
+      update(dt, time) {
+        const rv = teamOf(other(U.gas.team));   // gassed players
+        fakes.forEach((f, i) => {
+          if (!f.alive && f.fade > 0) f.fade = Math.max(0, f.fade - dt * 6);
+          const v = fakeVis[i], show = f.alive || f.fade > 0;
+          v.mesh.visible = v.sh.visible = show;
+          if (!show) return;
+          v.mesh.position.copy(f.pos);
+          v.mesh.material.opacity = f.alive ? 1 : f.fade;
+          v.sh.position.set(f.pos.x, 0.03, f.pos.z);
+        });
+        swirl.visible = ball.kind === 'curve' && ball.live && !ball.nb;
+        if (swirl.visible) { swirl.position.copy(ball.pos); swirl.rotation.set(time * 9, time * 13, 0); }
+
+        clockFace.visible = U.warp.t > 0 && !!U.warp.user;
+        if (clockFace.visible) {
+          const w = U.warp.user;
+          clockFace.position.set(w.pos.x, 0.07, w.pos.z);
+          handPivot.rotation.z = -(1 - U.warp.t / WARP.time) * Math.PI * 2;
+          clockFace.scale.setScalar(1 + Math.min(1, (WARP.time - U.warp.t) * 4) * 0.15);
+        }
+        const fresher = players.find((p) => p.windT > 0);   // Reborn sparks follow its user
+        sparks.forEach((m) => {
+          m.visible = !!fresher;
+          if (!m.visible) return;
+          const d = m.userData;
+          d.y += d.s * dt; if (d.y > 6.5) d.y = 0;
+          m.position.set(fresher.pos.x + Math.cos(d.a + time * 2) * d.r, d.y, fresher.pos.z + Math.sin(d.a + time * 2) * d.r);
+          m.material.opacity = 0.9 * (1 - d.y / 6.5);
+        });
+        players.forEach((r, i) => {
+          ice[i].visible = r.frozen > 0;
+          if (ice[i].visible) { ice[i].position.set(r.pos.x, 1.6, r.pos.z); ice[i].rotation.y = time * 0.3; }
+        });
+        frostT += dt;
+        const fk = Math.min(1, frostT / 0.6);
+        frostRing.scale.setScalar(1 + fk * 3);
+        frostRing.material.opacity = (1 - fk) * 0.9;
+        pops.forEach((e) => {
+          e.t += dt;
+          const k = Math.min(1, e.t / 0.35);
+          e.m.scale.setScalar(1 + k * 2.4);
+          e.m.material.opacity = (1 - k) * 0.8;
+        });
+
+        wall.visible = U.glass.t > 0;
+        if (wall.visible) {
+          wall.position.z = sideSign(U.glass.team) * GLASS.z;   // on the user's side of the net
+          const up = Math.min(1, (GLASS.time - U.glass.t) / 0.3);
+          wall.scale.y = 1 - Math.pow(1 - up, 3);
+          const ending = U.glass.t < 0.5 ? (Math.sin(time * 40) > 0 ? 0.35 : 1) : 1;
+          glassFlash = Math.max(0, glassFlash - dt * 3);
+          const flick = 1 + Math.sin(time * 13) * 0.06 + Math.sin(time * 29) * 0.04;
+          pane.material.map.offset.x = time * 0.35;
+          flames2.material.map.offset.x = -time * 0.55;
+          pane.scale.y = flick; pane.position.y = GLASS.h / 2 * flick;
+          flames2.scale.y = 2 - flick; flames2.position.y = GLASS.h * 0.4 * (2 - flick);
+          pane.material.opacity = Math.min(1, 0.85 + glassFlash * 0.15) * ending;
+          flames2.material.opacity = (0.7 + glassFlash * 0.2) * ending;
+          glow.material.opacity = (0.08 + glassFlash * 0.2 + Math.sin(time * 17) * 0.02) * ending;
+          base.material.opacity = (0.6 + Math.sin(time * 23) * 0.15) * ending;
+          frameMat.opacity = (0.75 + Math.sin(time * 6) * 0.15) * ending;
+          embers.forEach((m) => {
+            const d = m.userData;
+            d.y += d.s * dt; if (d.y > GLASS.h * 1.25) { d.y = 0.3; d.x = (Math.random() - 0.5) * GLASS.halfW * 2; }
+            m.position.set(d.x + Math.sin(time * 3 + d.ph) * 0.3, d.y, 0.25);
+            m.material.opacity = 0.95 * (1 - d.y / (GLASS.h * 1.25)) * ending;
+          });
+        }
+        ripples.forEach((r) => {
+          r.m.position.z = sideSign(U.glass.team) * (GLASS.z + 0.02);
+          r.t += dt;
+          const k = Math.min(1, r.t / 0.5);
+          r.m.scale.setScalar(1 + k * 6);
+          r.m.material.opacity = (1 - k) * 0.9;
+        });
+
+        crackT += dt;
+        crackDecal.visible = crackT < QUAKE.crack;
+        if (crackDecal.visible) {
+          crackDecal.scale.setScalar(0.25 + 0.75 * Math.min(1, crackT / 0.25));
+          crackDecal.material.opacity = crackT > QUAKE.crack - 0.8 ? (QUAKE.crack - crackT) / 0.8 : 1;
+        }
+        chunks.forEach((c) => {
+          if (!c.m.visible) return;
+          c.v.y -= G * dt;
+          c.m.position.addScaledVector(c.v, dt);
+          c.m.rotation.x += c.spin.x * dt; c.m.rotation.y += c.spin.y * dt; c.m.rotation.z += c.spin.z * dt;
+          if (c.m.position.y < 0.06) c.m.visible = false;
+        });
+        dustT += dt;
+        const dk = Math.min(1, dustT / 0.8);
+        dust.scale.setScalar(1 + dk * 2.5);
+        dust.material.opacity = (1 - dk) * 0.7;
+
+        const wet = U.tide.t > 0 ? Math.min(1, (TIDE.time - U.tide.t) / 0.6, U.tide.t / 0.6) : 0;
+        const wetSide = sideSign(other(U.tide.team));   // the flooded court
+        water.position.z = wetSide * (COURT.halfL / 2 + 0.25);
+        water.visible = fish[0].m.visible = fish[1].m.visible = wet > 0;
+        if (wet > 0) {
+          water.material.opacity = 0.75 * wet;
+          waterTex.offset.set(time * 0.05, time * 0.12);
+          fish.forEach((f) => {
+            const a = f.ph + time * f.sp;
+            const x = f.cx + Math.cos(a) * f.r, z = -wetSide * f.cz + Math.sin(a) * f.r;
+            const jt = (time + f.ph) % f.jumpEvery, jump = jt < 0.6 ? Math.sin((jt / 0.6) * Math.PI) : 0;
+            if (jt < 0.6 && jt + dt >= 0.6) { pop({ x, z }, 0xbfe9ff); usfx.splash(); }
+            f.m.position.set(x, 0.12 + jump * 1.6, z);
+            f.m.scale.setScalar(wet * 1.7);
+            f.m.rotation.set(0, -(a + (f.sp > 0 ? Math.PI / 2 : -Math.PI / 2)), jt < 0.6 ? Math.cos((jt / 0.6) * Math.PI) * 0.8 : 0);
+            f.m.userData.tail.rotation.y = Math.sin(time * 14) * 0.5;
+          });
+        }
+
+        cosmoRing.visible = !!U.cosmo;
+        if (U.cosmo) {
+          const c = U.cosmo;
+          const vs = teamOf(other(c.user.team));
+          const span = Math.max(1, Math.abs(sideSign(vs[0].team) * COURT.halfL - c.z0));
+          const k = clamp(Math.abs(c.z - c.z0) / span, 0, 1);
+          const grow = Math.min(1, c.t / 0.1);
+          const R = (COSMO.startR + (COSMO.endR - COSMO.startR) * Math.sqrt(k)) * (0.4 + 0.6 * grow);
+          const cx = c.x0 + ((vs[0].pos.x + vs[1].pos.x) / 2 - c.x0) * Math.min(1, k * 1.5);
+          cosmoRing.position.set(cx, COSMO.y + Math.sin(time * 7) * 0.15 * k, c.z);
+          cosmoRing.scale.setScalar(R);
+          cosmoRing.rotation.set(-Math.PI / 2 + Math.sin(time * 6) * 0.07, Math.cos(time * 5) * 0.06, 0);
+          goldRing.rotation.z = time * 14;
+          for (let i = 0; i < 2; i++) {
+            const m = goldSparks[sparkI++ % goldSparks.length];
+            const a = Math.random() * Math.PI * 2;
+            m.position.set(cx + Math.cos(a) * R, cosmoRing.position.y, c.z + Math.sin(a) * R);
+            m.userData.life = 0.6; m.userData.v.set(rand(-1.5, 1.5), rand(-0.5, 1.5), -c.dir * rand(2, 6));
+            m.visible = true;
+          }
+        }
+        goldSparks.forEach((m) => {
+          if (!m.visible) return;
+          const d = m.userData;
+          d.life -= dt;
+          if (d.life <= 0) { m.visible = false; return; }
+          m.position.addScaledVector(d.v, dt);
+          m.material.opacity = 0.9 * (d.life / 0.6);
+        });
+        goldBursts.forEach((b) => {
+          b.t += dt;
+          const k = Math.min(1, b.t / 0.5);
+          b.m.scale.setScalar(1 + k * 5);
+          b.m.material.opacity = (1 - k) * 0.9;
+        });
+
+        clouds.forEach(({ gasCloud, puffs, bubbles }, ci) => {
+          gasCloud.visible = U.gas.t > 0;
+          if (!gasCloud.visible) return;
+          const age = GAS.time - U.gas.t;
+          const k = Math.min(1, age / 0.4) * Math.min(1, U.gas.t / 0.6);
+          gasCloud.position.set(rv[ci].pos.x, 0, rv[ci].pos.z);
+          puffs.forEach((s) => {
+            const d = s.userData;
+            const a = d.a + time * d.sp;
+            s.position.set(Math.cos(a) * d.r, d.y + Math.sin(time * 1.3 + d.ph) * 0.3, Math.sin(a) * d.r);
+            s.scale.setScalar(d.size * (0.6 + 0.4 * k) * (1 + Math.sin(time * 0.9 + d.ph) * 0.12));
+            s.material.opacity = 0.62 * k;
+          });
+          bubbles.forEach((m) => {
+            const d = m.userData;
+            d.y += d.s * dt; if (d.y > 6.5) { d.y = 0.3; d.a = Math.random() * 6.28; }
+            m.position.set(Math.cos(d.a) * d.r, d.y, Math.sin(d.a) * d.r);
+            m.material.opacity = 0.8 * k * (1 - d.y / 6.5);
+          });
+        });
+
+        hole.visible = U.hole.t > 0;
+        if (hole.visible) {
+          const age = HOLE.time - U.hole.t;
+          const k = Math.min(1, age / 0.35) * Math.min(1, U.hole.t / 0.3);
+          hole.scale.setScalar(Math.max(0.01, k));
+          hole.position.set(U.hole.x, 0, U.hole.z);
+          disks.forEach((d, i) => { d.rotation.set(-Math.PI / 2 + 0.35, 0, time * (i ? -2.2 : 1.6)); });
+          halo.lookAt(camera.position);
+          halo.material.opacity = 0.6 + Math.sin(time * 9) * 0.2;
+          holeSwirl.rotation.z = time * 3;
+          motes.forEach((m) => {
+            const d = m.userData;
+            d.r -= d.s * 2.2 * dt; d.a += (2.5 / Math.max(0.6, d.r)) * dt * 2;
+            d.y += (HOLE.y - d.y) * dt * 1.5;
+            if (d.r < 1.1) { d.r = 3.5 + Math.random() * 2; d.y = 0.4 + Math.random() * 8; }
+            m.position.set(Math.cos(d.a) * d.r, d.y, Math.sin(d.a) * d.r);
+          });
+        }
+      },
+    };
+  })();
+
+  /* =====================================================================
+     LOOP
+     ===================================================================== */
+  let acc = 0;
+  function update(dt) {
+    if (cards.frozen()) return;   // pause and result screens stop play; the menu demo keeps going
+    if (state.excite > 0) state.excite = Math.max(0, state.excite - dt * 0.6);
+    // Time Warp: the ball runs at 70% and the user's opponents at 45%.
+    const bF = U.warp.t > 0 ? WARP.ball : 1;
+    const pdtOf = (p) => (slowed(p) ? dt * WARP.rivals : dt);
+    state.sinceHit += dt * bF;
+    if (state.shake > 0) state.shake = Math.max(0, state.shake - dt);
+    ultUpdate(dt);
+
+    if (isControlled(you)) updateYou(pdtOf(you));
+    for (const p of players) {
+      const pdt = pdtOf(p);
+      if (!isControlled(p)) updateAI(p, pdt);
+      updateFacing(p, pdt);
+      if (!(p.windT > 0)) tire(p, pdt);   // Reborn keeps its user fresh
+    }
+
+    acc += dt * bF;
+    while (acc >= STEP) {
+      acc -= STEP;
+      if (ball.held) continue;
+      const pz = ball.pos.z;
+      U.ballT += STEP;
+      const ev = stepB(ball, STEP);
+      if (ev === 'bounce' || (ev === 'roll' && ball.live)) onBounce(ev);
+      // A ball that bounces and then hits the fence is dead: nobody may play it.
+      if (ball.live && ball.fenced && ball.bounces >= 1 && state.phase === 'rally') pointTo(ball.lastTeam, 'FENCE');
+      else if (ev === 'net') {
+        sfx.net(earDist(ball.pos));
+        if (ball.live) replan();
+      }
+      ultStep(pz, ev);
+    }
+    // Safety net: a ball that somehow never comes down ends the rally.
+    if (state.phase === 'rally' && ball.live && state.sinceHit > 8) pointTo(ball.lastTeam, 'STUCK');
+
+    if (state.phase === 'serve' && !isControlled(state.server)) {
+      state.serveTimer -= dt;
+      if (state.serveTimer <= 0) doServe(state.server);
+    } else if (state.phase === 'point') {
+      state.timer -= dt;
+      if (state.timer <= 0) { if (state.winner) gameOver(); else setupServe(); }
+    } else if (state.phase === 'over' && (state.autoplay || state.demo)) {
+      state.timer -= dt;
+      if (state.timer <= 0) startMatch();
+    }
+  }
+
+  let last = performance.now();
+  let time = 0;
+  let hiddenTab = false;
+  document.addEventListener('visibilitychange', () => {
+    hiddenTab = document.hidden;
+    last = performance.now();
+    if (document.hidden && !cards.open()) cards.pause();
+  });
+
+  function render(dt) {
+    // Some browsers start the page at zero size; re-measure until it matches.
+    const w = window.innerWidth, h = window.innerHeight;
+    if (h > 0 && w > 0 && !(Math.abs(camera.aspect - w / h) < 0.001)) resize();
+    for (const p of players) animate(p, slowed(p) && !cards.frozen() ? dt * WARP.rivals : dt);
+    fx.update(dt, time);
+    ufx.update(cards.frozen() ? 0 : dt, time);
+    drawBars();
+    hud.zone();
+    if (perf.level < 2) crowd.update(time, state.excite);
+    if (state.demo) orbit += dt * 0.07;
+
+    cameraGoal();
+    const k = 1 - Math.exp(-dt * 5);
+    camPos.lerp(wantPos, k);
+    camLook.lerp(wantLook, k);
+    camera.position.copy(camPos);
+    camera.lookAt(camLook);
+    if (state.shake > 0) {
+      const s = state.shake * 0.6;
+      camera.position.x += (Math.random() - 0.5) * s;
+      camera.position.y += (Math.random() - 0.5) * s;
+    }
+    renderer.render(scene, camera);
+  }
+
+  // Fatigue bars: one per player, pinned above the head in screen space.
+  const bars = players.map((p) => {
+    const el = document.createElement('div');
+    el.className = 'fbar' + (p === you ? ' you' : '');
+    el.appendChild(document.createElement('i'));
+    document.getElementById('bars').appendChild(el);
+    return { p, el, fill: el.firstChild, tier: '' };
+  });
+  const barPoint = new THREE.Vector3();
+  function drawBars() {
+    const w = window.innerWidth, h = window.innerHeight;
+    for (const b of bars) {
+      // Above the head; your bar sits above your arrow marker.
+      barPoint.set(b.p.pos.x, b.p === you ? 7.6 : 6.6, b.p.pos.z).project(camera);
+      const onScreen = barPoint.z < 1 && Math.abs(barPoint.x) < 1.1 && Math.abs(barPoint.y) < 1.1;
+      b.el.style.visibility = onScreen ? 'visible' : 'hidden';
+      if (!onScreen) continue;
+      const x = (barPoint.x * 0.5 + 0.5) * w, y = (-barPoint.y * 0.5 + 0.5) * h;
+      b.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      b.fill.style.width = (b.p.stamina * 100).toFixed(1) + '%';
+      const tier = b.p.stamina >= 0.75 ? '' : b.p.stamina >= 0.5 ? 'mid' : 'low';
+      if (tier !== b.tier) {
+        b.tier = tier;
+        b.el.classList.toggle('mid', tier === 'mid');
+        b.el.classList.toggle('low', tier === 'low');
+      }
+    }
+  }
+
+  // Adaptive quality: if frames run slow (below ~38 fps on average), step
+  // down the render resolution, then stop animating the crowd.
+  const perf = { level: 0, sum: 0, n: 0 };
+  function watchPerf(raw) {
+    if (!(raw > 0 && raw < 0.5) || perf.level >= 2) return;
+    perf.sum += raw;
+    perf.n++;
+    if (perf.n < 150) return;
+    const avg = perf.sum / perf.n;
+    perf.sum = perf.n = 0;
+    if (avg <= 0.026) return;
+    perf.level++;
+    renderer.setPixelRatio(perf.level === 1 ? Math.min(window.devicePixelRatio || 1, 1.25) : 1);
+  }
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (hiddenTab) return;
+    watchPerf((now - last) / 1000);
+    // The first frame's timestamp can be earlier than our start time; a
+    // negative step would push the camera and physics backwards.
+    const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
+    last = now;
+    time += dt;
+    update(dt);
+    render(dt);
+  }
+
+  // Open on the title menu with a demo match behind it (or straight into an
+  // all-AI match for automated checks).
+  if (isTouch) enableTouchUI();
+  if (state.autoplay) startMatch();
+  else cards.menu();
+  cameraGoal();
+  camPos.copy(wantPos);
+  camLook.copy(wantLook);
+  requestAnimationFrame(frame);
+
+  // Test hook: lets an automated check run whole matches faster than real time.
+  window.__kc = { state, ball, players, stats, settings, update, render, shotPress, canHit, horizDist, cards, startMatch, perf, sfx, activateUlt, setLineup, lineup, ROSTER, U, ULT_INFO, myUlt, hitBall, fakes };
+})();
+
+</script>

@@ -1,0 +1,2865 @@
+<meta charset="utf-8">
+<title>Ultimate Lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Rubik:wght@400;500;600&display=swap">
+<style>
+  :root {
+    /* Layout: full-bleed 3D practice court; ultimate picker docked left (a top sheet on phones);
+       fire button and lab controls docked bottom-right (a bottom bar on phones). One dark look, same as the game. */
+    --ink: #0e1830;
+    --panel: rgba(14, 24, 48, 0.88);
+    --raise: rgba(255, 255, 255, 0.06);
+    --line: rgba(255, 255, 255, 0.12);
+    --paper: #f2f5ff;
+    --muted: #a8b4d6;
+    --ball: #dcf54a;
+    --team-a: #ff8a2b;
+    --team-b: #b45cff;
+    --good: #7be05a;
+    --bad: #ff6b6b;
+    --ult: #ff7a1a;           /* set from the selected ultimate */
+    --font-display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+    --font-body: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--font-body);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  [hidden] { display: none !important; }
+  #stage { position: fixed; inset: 0; }
+  #c { display: block; width: 100%; height: 100%; transition: filter 0.4s; }
+  body.warping #c { filter: saturate(0.55) hue-rotate(-18deg) brightness(1.04); }
+  .warpfx {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.35s;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(79, 209, 197, 0.38) 100%);
+  }
+  body.warping .warpfx { opacity: 1; }
+
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--ball); outline-offset: 2px; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* ---------- picker ---------- */
+  .lab {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    left: max(16px, env(safe-area-inset-left, 0px));
+    width: 300px;
+    max-height: calc(100% - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    padding: 14px;
+    box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .lab header .eyebrow {
+    font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+  }
+  .lab h1 {
+    margin: 2px 0 0; font-family: var(--font-display); font-weight: 400;
+    font-size: 30px; line-height: 1; letter-spacing: 0.01em;
+  }
+  .lab h1 span { color: var(--ult); transition: color 0.3s; }
+  .ults { display: flex; flex-direction: column; gap: 6px; }
+  .ult {
+    display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px;
+    padding: 8px 10px; text-align: left;
+    background: var(--raise); border: 1px solid transparent; border-radius: 12px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .ult:hover { background: rgba(255, 255, 255, 0.1); }
+  .ult[aria-selected="true"] { border-color: var(--c); background: rgba(255, 255, 255, 0.1); }
+  .orb {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff 0 8%, var(--c) 40%, color-mix(in srgb, var(--c) 40%, #000) 100%);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent);
+  }
+  .ult .nm { font-weight: 600; font-size: 14.5px; line-height: 1.15; }
+  .ult .nm small { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .ult .key {
+    font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px;
+    min-width: 18px; text-align: center; padding: 1px 4px;
+  }
+  .detail { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;
+    padding: 3px 8px; border-radius: 999px; background: var(--raise); color: var(--muted);
+  }
+  .badge.live { background: color-mix(in srgb, var(--team-a) 22%, transparent); color: #ffc28f; }
+  .detail p { margin: 0; font-size: 13.5px; line-height: 1.45; color: #dfe5f7; }
+  .detail dl {
+    margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12.5px;
+  }
+  .detail dt { color: var(--muted); }
+  .detail dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .tally {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
+  }
+  .tally div { background: var(--raise); border-radius: 10px; padding: 7px 8px; }
+  .tally b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 22px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .tally span { font-size: 11px; color: var(--muted); }
+  .tally .w b { color: var(--good); }
+  .tally .r b { color: var(--bad); }
+  .compare { font-size: 12px; color: var(--muted); margin: 0; }
+  .lastshot { font-size: 12px; color: var(--muted); margin: 0; font-variant-numeric: tabular-nums; }
+
+  /* ---------- dock ---------- */
+  .dock {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 14px;
+  }
+  .fire {
+    position: relative; flex: none;
+    width: 92px; height: 92px; border-radius: 50%; border: 0; padding: 0;
+    background: conic-gradient(var(--ult) calc(var(--fill, 1) * 360deg), rgba(255,255,255,0.14) 0);
+    display: grid; place-items: center;
+    box-shadow: 0 0 22px color-mix(in srgb, var(--ult) 45%, transparent);
+    transition: transform 0.1s;
+  }
+  .fire:active { transform: scale(0.95); }
+  .fire .core {
+    width: 78px; height: 78px; border-radius: 50%; background: #16213d;
+    display: grid; place-content: center; text-align: center; gap: 1px;
+  }
+  .fire b { font-family: var(--font-display); font-weight: 400; font-size: 21px; letter-spacing: 0.04em; line-height: 1; }
+  .fire small { font-size: 10.5px; color: var(--muted); letter-spacing: 0.08em; }
+  .fire.armed { animation: pulse 0.7s ease-in-out infinite alternate; }
+  .fire.armed .core { background: color-mix(in srgb, var(--ult) 35%, #16213d); }
+  @keyframes pulse { to { box-shadow: 0 0 34px var(--ult); } }
+  .ctl { display: grid; grid-template-columns: auto auto; gap: 7px 10px; align-items: center; }
+  .ctl .lbl { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .seg { display: flex; background: var(--raise); border-radius: 10px; padding: 2px; gap: 2px; }
+  .seg button {
+    border: 0; background: transparent; border-radius: 8px; padding: 5px 9px; font-size: 12.5px; color: var(--muted);
+  }
+  .seg button[aria-pressed="true"] { background: rgba(255,255,255,0.16); color: var(--paper); }
+
+  /* ---------- result + tags ---------- */
+  .result {
+    position: fixed; top: calc(env(safe-area-inset-top, 0px) + 22px); left: calc(50% + 158px);
+    transform: translate(-50%, -8px); opacity: 0; transition: opacity 0.2s, transform 0.2s;
+    padding: 10px 18px 11px; text-align: center; pointer-events: none; min-width: 180px;
+  }
+  .result.show { opacity: 1; transform: translate(-50%, 0); }
+  .result b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 30px; line-height: 1.05; }
+  .result span { font-size: 13px; color: var(--muted); }
+  .result.win b { color: var(--good); }
+  .result.lose b { color: var(--bad); }
+  #tags { position: fixed; inset: 0; pointer-events: none; }
+  .tag {
+    position: absolute; left: 0; top: 0; transform: translate(-50%, -100%);
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; white-space: nowrap;
+  }
+  .tag .st {
+    padding: 2px 7px; border-radius: 999px; background: rgba(14, 24, 48, 0.85); color: var(--paper);
+  }
+  .tag .st:empty { display: none; }
+  .tag .bar { width: 46px; height: 6px; border-radius: 3px; background: rgba(14, 24, 48, 0.8); overflow: hidden; }
+  .tag .bar i { display: block; height: 100%; background: var(--good); border-radius: 3px; }
+  .tag .bar.mid i { background: #ffc531; }
+  .tag .bar.low i { background: var(--bad); }
+  .keys {
+    position: fixed; left: max(332px, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    font-size: 12px; color: var(--muted); padding: 7px 11px;
+  }
+  .keys kbd {
+    font: inherit; font-size: 11px; color: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px;
+  }
+  @media (max-width: 1080px) { .keys { display: none; } }
+
+  /* ---------- phones ---------- */
+  @media (max-width: 760px) {
+    .lab {
+      left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
+      top: calc(env(safe-area-inset-top, 0px) + 10px);
+      width: auto; padding: 10px 12px; gap: 8px; max-height: 42%;
+    }
+    .lab header .eyebrow { display: none; }
+    .lab h1 { font-size: 22px; }
+    .ults { flex-direction: row; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px; }
+    .ults::-webkit-scrollbar { display: none; }
+    .ult { flex: none; grid-template-columns: 22px auto; gap: 7px; padding: 6px 10px 6px 7px; }
+    .ult .key { display: none; }
+    .orb { width: 20px; height: 20px; }
+    .ult .nm { font-size: 13px; }
+    .ult .nm small { display: none; }
+    .detail { padding-top: 8px; gap: 6px; }
+    .detail p { font-size: 12.5px; }
+    .detail dl, .compare, .badges { display: none; }
+    .tally div { padding: 5px 8px; display: flex; align-items: baseline; gap: 6px; }
+    .tally b { font-size: 17px; display: inline; }
+    .dock {
+      left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); padding: 10px; gap: 10px;
+    }
+    .fire { width: 80px; height: 80px; }
+    .fire .core { width: 68px; height: 68px; }
+    .fire b { font-size: 18px; }
+    .ctl { flex: 1; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .ctl .lbl { display: none; }
+    .seg { min-width: 0; }
+    .seg button { flex: 1; min-width: 0; padding: 6px 4px; font-size: 12px; white-space: nowrap; }
+    .ctl .pair { display: flex; gap: 6px; min-width: 0; }
+    .ctl .pair .seg { flex: 1 1 0; }
+    .result { left: 50%; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); }
+    .result b { font-size: 24px; }
+  }
+  /* ---------- short landscape screens (phones on their side) ---------- */
+  @media (min-width: 761px) and (max-height: 560px) {
+    .lab { width: 236px; padding: 10px; gap: 8px; top: calc(env(safe-area-inset-top, 0px) + 10px); }
+    .lab header .eyebrow { display: none; }
+    .lab h1 { font-size: 22px; }
+    .ults { gap: 4px; }
+    .ult { padding: 5px 8px; grid-template-columns: 20px 1fr auto; gap: 8px; }
+    .orb { width: 18px; height: 18px; }
+    .ult .nm { font-size: 13px; }
+    .ult .nm small, .detail dl, .compare, .badges, .keys { display: none; }
+    .detail p { font-size: 12px; }
+    .tally b { font-size: 17px; }
+    .dock { padding: 8px 10px; gap: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
+    .fire { width: 70px; height: 70px; }
+    .fire .core { width: 59px; height: 59px; }
+    .fire b { font-size: 16px; }
+    .ctl { grid-template-columns: auto; gap: 5px; }
+    .ctl .lbl { display: none; }
+    .ctl .pair { display: flex; gap: 5px; }
+    .seg button { padding: 4px 7px; font-size: 11.5px; }
+    .result { left: calc(50% + 124px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fire.armed { animation: none; }
+    .result, #c, .warpfx { transition: none; }
+  }
+</style>
+
+<div id="stage"><canvas id="c" aria-label="Practice court"></canvas></div>
+<div class="warpfx"></div>
+<div id="tags"></div>
+
+<aside class="lab panel" id="lab">
+  <header>
+    <div class="eyebrow">Ultimate Pickleball Clash · practice court</div>
+    <h1>Ultimate <span>Lab</span></h1>
+  </header>
+  <div class="ults" id="ults" role="listbox" aria-label="Ultimates"></div>
+  <section class="detail" aria-live="polite">
+    <div class="badges"><span class="badge" id="dKind">Shot</span><span class="badge live" id="dLive">In the game</span></div>
+    <p id="dDesc"></p>
+    <dl id="dStats"></dl>
+    <div class="tally">
+      <div><b id="tFired">0</b><span>fired</span></div>
+      <div class="w"><b id="tWin">0</b><span>winners</span></div>
+      <div class="r"><b id="tRet">0</b><span>returned</span></div>
+    </div>
+    <p class="compare" id="compare"></p>
+    <p class="lastshot" id="lastShot"></p>
+  </section>
+</aside>
+
+<div class="result panel" id="result"><b id="rBig"></b><span id="rSmall"></span></div>
+
+<div class="dock panel" id="dock">
+  <button class="fire" id="fire" aria-label="Fire the ultimate (M)"><span class="core"><b id="fireLbl">FIRE</b><small id="fireSub">M key</small></span></button>
+  <div class="ctl">
+    <span class="lbl">Play</span>
+    <div class="pair"><div class="seg" id="autoSeg" role="group" aria-label="Auto-fire"><button data-v="on">Auto-fire</button><button data-v="off">Manual</button></div>
+      <div class="seg" id="speedSeg" role="group" aria-label="Game speed"><button data-v="1">1×</button><button data-v="0.5">½×</button><button data-v="0.25">¼×</button></div></div>
+    <span class="lbl">Camera</span>
+    <div class="seg" id="camSeg" role="group" aria-label="Camera"><button data-v="behind">Behind</button><button data-v="side">Side</button><button data-v="top">Top</button><button data-v="rival">Rivals</button></div>
+    <span class="lbl">Show</span>
+    <div class="pair"><div class="seg" id="pathSeg" role="group" aria-label="Flight paths"><button data-v="on">Paths</button><button data-v="off">No paths</button></div>
+      <div class="seg" id="soundSeg" role="group" aria-label="Sound"><button data-v="on">Sound</button><button data-v="off">Mute</button></div></div>
+  </div>
+</div>
+
+<div class="keys panel"><kbd>1</kbd>–<kbd>9</kbd>, <kbd>0</kbd>, <kbd>-</kbd>, <kbd>=</kbd> pick · <kbd>M</kbd> fire · <kbd>A</kbd> auto-fire · <kbd>C</kbd> camera · <kbd>S</kbd> speed</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  /* =====================================================================
+     CHARACTER FACTORY  (copied from characters.html; keep the two in sync)
+     Units are feet. Characters face -Z. The rig:
+       root ─ rig (height from leg angles) ─┬─ hip ─ knee        (×2 legs)
+                                           └─ upper (lean + twist)
+                                                ├─ torso, head ─ hair, eyes, mouth
+                                                └─ shoulder ─ elbow (×2 arms; right holds the paddle)
+     ===================================================================== */
+  const TEAM_COLORS = { a: 0xff8a2b, b: 0xb45cff };
+
+  const CHARACTERS = [
+    { id: 'you',  name: 'YOU',  team: 'a', role: 'You · orange team',     shirt: TEAM_COLORS.a, shorts: 0x1f2a44, skin: 0xf1c7a3, hair: 'spiky',  hairColor: 0x6b4226, paddle: 0x22c7b8, marker: true },
+    { id: 'kai',  name: 'KAI',  team: 'a', role: 'Partner · orange team', shirt: TEAM_COLORS.a, shorts: 0x1f2a44, skin: 0x8d5a3b, hair: 'short',  hairColor: 0x151217, paddle: 0xffd23f },
+    { id: 'rex',  name: 'REX',  team: 'b', role: 'Rival · violet team',   shirt: TEAM_COLORS.b, shorts: 0x23193a, skin: 0xc68a5e, hair: 'quiff',  hairColor: 0x2b1d14, paddle: 0xff4f6d },
+    { id: 'juno', name: 'JUNO', team: 'b', role: 'Rival · violet team',   shirt: TEAM_COLORS.b, shorts: 0x23193a, skin: 0xffdcc2, hair: 'pony',   hairColor: 0xd9a441, paddle: 0x3fa9ff },
+  ];
+
+  // Leg and arm segment lengths (ft). HIP = THIGH + SHIN + ankle-to-floor.
+  const THIGH = 1.05, SHIN = 1.27, ANKLE = 0.13, HIP = THIGH + SHIN + ANKLE;
+  const UPPER_ARM = 0.74, FOREARM = 0.7;
+  const HEAD_Y = 2.75, HEAD_R = 0.62;
+  const mat = (color, roughness = 0.75) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
+
+  const TORSO_PROFILE = [
+    [0.0, 0.2], [0.57, 0.22], [0.62, 0.5], [0.62, 0.95], [0.69, 1.35], [0.72, 1.62],
+    [0.69, 1.84], [0.57, 2.0], [0.38, 2.11], [0.18, 2.16], [0.0, 2.17],
+  ];
+  // Smooth a [radius, height] profile with a spline and spin it into a
+  // solid. from/to keep just one height band (for the chest stripe); grow
+  // pushes that band slightly outside the shirt so it never z-fights.
+  function latheProfile(profile, opts = {}) {
+    const curve = new THREE.SplineCurve(profile.map(([r, y]) => new THREE.Vector2(r, y)));
+    let pts = curve.getPoints(48).map((v) => new THREE.Vector2(Math.max(0, v.x), v.y));
+    if (opts.from !== undefined) pts = pts.filter((v) => v.y >= opts.from && v.y <= opts.to);
+    if (opts.grow) pts = pts.map((v) => new THREE.Vector2(v.x * opts.grow, v.y));
+    return new THREE.LatheGeometry(pts, 32);
+  }
+
+  // Extrude a side-profile shape across the foot and turn it so the profile's
+  // +u points toward the toes (-Z) and the width runs along X.
+  function sneakerPart(draw, width, bevel) {
+    const s = new THREE.Shape();
+    draw(s);
+    const g = new THREE.ExtrudeGeometry(s, {
+      depth: width, curveSegments: 8,
+      bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3,
+    });
+    g.translate(0, 0, -width / 2);
+    g.rotateY(Math.PI / 2);
+    return g;
+  }
+
+  // Shared geometry, so four characters cost little more than one.
+  const GEO = {
+    thigh: new THREE.CylinderGeometry(0.23, 0.2, THIGH, 12),
+    shin: new THREE.CylinderGeometry(0.2, 0.17, SHIN - 0.15, 12),
+    knee: new THREE.SphereGeometry(0.2, 12, 10),
+    sock: new THREE.CylinderGeometry(0.185, 0.18, 0.28, 12),
+    // Sneaker: a side-profile outline (u = toe direction, v = up) extruded
+    // across the foot with bevelled edges, so it is rounded on every side.
+    shoeUpper: sneakerPart((s) => {
+      s.moveTo(-0.27, 0);
+      s.lineTo(0.3, 0);
+      s.quadraticCurveTo(0.44, 0, 0.44, 0.1);    // rounded toe
+      s.quadraticCurveTo(0.43, 0.2, 0.25, 0.22); // toe box slopes up
+      s.lineTo(0.06, 0.3);                       // laces up to the ankle
+      s.lineTo(-0.19, 0.32);                     // collar
+      s.quadraticCurveTo(-0.31, 0.3, -0.31, 0.15); // curved heel
+      s.quadraticCurveTo(-0.31, 0, -0.27, 0);
+    }, 0.28, 0.045),
+    shoeSole: sneakerPart((s) => {
+      s.moveTo(-0.27, 0);
+      s.lineTo(0.39, 0);
+      s.quadraticCurveTo(0.46, 0, 0.46, 0.04);
+      s.quadraticCurveTo(0.46, 0.08, 0.39, 0.08);
+      s.lineTo(-0.27, 0.08);
+      s.quadraticCurveTo(-0.34, 0.08, -0.34, 0.04);
+      s.quadraticCurveTo(-0.34, 0, -0.27, 0);
+    }, 0.31, 0.03),
+    // Torso and shorts are lathed from smooth side profiles (radius, height
+    // in upper-body space): waist taper, fuller chest, shoulders that round
+    // over into the neck. See latheProfile() below.
+    shorts: latheProfile([[0.0, -0.27], [0.3, -0.26], [0.55, -0.23], [0.64, -0.1], [0.66, 0.15], [0.64, 0.42], [0.6, 0.56]]),
+    torso: latheProfile(TORSO_PROFILE),
+    stripe: latheProfile(TORSO_PROFILE, { from: 1.3, to: 1.46, grow: 1.025 }),
+    collar: new THREE.TorusGeometry(0.24, 0.05, 8, 24),
+    sleeve: new THREE.CylinderGeometry(0.195, 0.175, 0.38, 14),
+    neck: new THREE.CylinderGeometry(0.2, 0.22, 0.32, 10),
+    head: new THREE.SphereGeometry(HEAD_R, 24, 18),
+    eye: new THREE.SphereGeometry(0.12, 14, 10),
+    shine: new THREE.SphereGeometry(0.038, 8, 6),
+    mouth: new THREE.TorusGeometry(0.14, 0.03, 6, 16, Math.PI),
+    hairCap: new THREE.SphereGeometry(HEAD_R + 0.05, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.56),
+    blob: new THREE.SphereGeometry(0.3, 12, 10),
+    shoulder: new THREE.SphereGeometry(0.21, 16, 12),
+    upperArm: new THREE.CylinderGeometry(0.17, 0.15, UPPER_ARM, 10),
+    elbow: new THREE.SphereGeometry(0.15, 10, 8),
+    forearm: new THREE.CylinderGeometry(0.15, 0.13, FOREARM, 10),
+    hand: new THREE.SphereGeometry(0.17, 10, 8),
+    grip: new THREE.CylinderGeometry(0.075, 0.07, 0.52, 8),
+    face: (() => {
+      const w = 0.8, h = 0.96, r = 0.2, s = new THREE.Shape();
+      s.moveTo(-w / 2 + r, -h / 2);
+      s.lineTo(w / 2 - r, -h / 2); s.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+      s.lineTo(w / 2, h / 2 - r);  s.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+      s.lineTo(-w / 2 + r, h / 2); s.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+      s.lineTo(-w / 2, -h / 2 + r); s.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+      const g = new THREE.ExtrudeGeometry(s, { depth: 0.07, bevelEnabled: false, curveSegments: 6 });
+      g.translate(0, 0, -0.035);
+      return g;
+    })(),
+    marker: new THREE.ConeGeometry(0.34, 0.75, 4),
+    buzz: new THREE.SphereGeometry(HEAD_R + 0.035, 24, 9, 0, Math.PI * 2, 0, Math.PI * 0.5),
+    spike: new THREE.ConeGeometry(0.13, 0.42, 8),
+  };
+
+  /* ---------- hairstyles ----------
+     Each builder adds meshes to the head's hair group. Head-local space:
+     head centre at the origin, radius HEAD_R, face toward -Z. */
+  const UP = new THREE.Vector3(0, 1, 0);
+  function part(g, geo, m, pos, scale, rot) {
+    const o = new THREE.Mesh(geo, m);
+    o.position.set(pos[0], pos[1], pos[2]);
+    if (scale) o.scale.set(scale[0], scale[1], scale[2]);
+    if (rot) o.rotation.set(rot[0], rot[1], rot[2]);
+    g.add(o);
+    return o;
+  }
+  // A direction on the head: tilt = angle down from the crown, turn = angle
+  // around the head (0 = back of head, PI = face).
+  const onHead = (tilt, turn) => new THREE.Vector3(Math.sin(tilt) * Math.sin(turn), Math.cos(tilt), Math.sin(tilt) * Math.cos(turn));
+  const cap = (g, m, s = 1) => part(g, GEO.hairCap, m, [0, 0.02, 0.04], [s, s, s], [0.42, 0, 0]);
+
+  const HAIR = {
+    short:  { label: 'Short', build: (g, m) => cap(g, m, 1.05) },
+    buzz:   { label: 'Buzz cut', build: (g, m) => part(g, GEO.buzz, m, [0, 0, 0.02], null, [0.5, 0, 0]) },
+    quiff:  { label: 'Quiff', build: (g, m) => {
+      cap(g, m);
+      part(g, GEO.blob, m, [0, 0.5, -0.4], [1.35, 0.5, 0.85], [-0.45, 0, 0]);
+    } },
+    spiky:  { label: 'Spiky', build: (g, m) => {
+      cap(g, m);
+      const spots = [[0, 0], [0.5, 0], [0.5, 1.26], [0.5, 2.51], [0.5, 3.77], [0.5, 5.03], [0.95, 0.6], [0.95, 5.68], [0.95, 0]];
+      for (const [tilt, turn] of spots) {
+        const dir = onHead(tilt, turn);
+        const s = part(g, GEO.spike, m, dir.clone().multiplyScalar(HEAD_R + 0.14).toArray());
+        s.quaternion.setFromUnitVectors(UP, dir);
+      }
+    } },
+    mohawk: { label: 'Mohawk', build: (g, m) => {
+      for (let i = 0; i < 6; i++) {
+        const a = -0.75 + i * 0.32; // front (-) to back (+)
+        part(g, GEO.blob, m, [0, Math.cos(a) * (HEAD_R + 0.1), Math.sin(a) * (HEAD_R + 0.1)], [0.32, 0.8, 0.55], [a, 0, 0]);
+      }
+    } },
+    curly:  { label: 'Curly', build: (g, m) => {
+      cap(g, m, 0.98);
+      for (const tilt of [0.2, 0.62, 1.05]) {
+        const n = tilt < 0.3 ? 3 : tilt < 0.8 ? 7 : 8;
+        for (let i = 0; i < n; i++) {
+          const turn = (i / n) * Math.PI * 2 + tilt;
+          const dir = onHead(tilt, turn);
+          if (tilt > 0.8 && dir.z < -0.15) continue; // keep the face clear
+          part(g, GEO.blob, m, dir.multiplyScalar(HEAD_R + 0.04).toArray(), [0.62, 0.62, 0.62]);
+        }
+      }
+    } },
+    afro:   { label: 'Afro', build: (g, m) => part(g, GEO.blob, m, [0, 0.38, 0.26], [2.9, 2.55, 2.7]) },
+    bun:    { label: 'Top bun', build: (g, m) => {
+      cap(g, m);
+      part(g, GEO.blob, m, [0, 0.66, 0.22], [0.85, 0.8, 0.85]);
+    } },
+    pony:   { label: 'Ponytail', build: (g, m) => {
+      cap(g, m);
+      part(g, GEO.blob, m, [0, 0.12, 0.66], [0.9, 0.9, 0.9]);
+      part(g, GEO.blob, m, [0, -0.25, 0.78], [0.7, 1.3, 0.7]);
+    } },
+    pigtails: { label: 'Pigtails', build: (g, m) => {
+      cap(g, m);
+      part(g, GEO.blob, m, [-0.68, -0.12, 0.16], [0.55, 1.15, 0.55], [0, 0, -0.3]);
+      part(g, GEO.blob, m, [0.68, -0.12, 0.16], [0.55, 1.15, 0.55], [0, 0, 0.3]);
+    } },
+  };
+  const HAIR_STYLES = Object.keys(HAIR);
+
+  function createCharacter(def) {
+    const M = {
+      skin: mat(def.skin, 0.8), shirt: mat(def.shirt, 0.7), shorts: mat(def.shorts, 0.85),
+      shoe: mat(TEAM_COLORS[def.team], 0.55), sole: mat(0xf2f4f8, 0.8), sock: mat(0xffffff, 0.9),
+      hair: new THREE.MeshStandardMaterial({ color: def.hairColor, roughness: 0.9, side: THREE.DoubleSide }),
+      eye: mat(0x14141c, 0.25), shine: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+      mouth: mat(0x5a1e24, 0.6), paddle: mat(def.paddle, 0.45), grip: mat(0x23232b, 0.95),
+      stripe: mat(0xffffff, 0.7),
+    };
+    const mesh = (geo, m, x = 0, y = 0, z = 0) => {
+      const o = new THREE.Mesh(geo, m);
+      o.position.set(x, y, z);
+      o.castShadow = true;
+      return o;
+    };
+    const joint = (parent, x, y, z) => {
+      const g = new THREE.Group();
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    };
+
+    const root = new THREE.Group();
+    const rig = new THREE.Group();
+    root.add(rig);
+
+    // Legs: hip joint -> thigh -> knee joint -> shin + foot.
+    const makeLeg = (x) => {
+      const hip = joint(rig, x, HIP, 0);
+      hip.add(mesh(GEO.thigh, M.skin, 0, -THIGH / 2, 0));
+      const knee = joint(hip, 0, -THIGH, 0);
+      knee.add(mesh(GEO.knee, M.skin));
+      knee.add(mesh(GEO.shin, M.skin, 0, -(SHIN - 0.15) / 2, 0));
+      knee.add(mesh(GEO.sock, M.sock, 0, -SHIN + 0.2, 0));
+      // Shoe origin sits on the floor under the ankle; sole first, upper on it.
+      const shoe = joint(knee, 0, -SHIN - ANKLE, -0.06);
+      shoe.add(mesh(GEO.shoeSole, M.sole, 0, 0.03, 0));
+      shoe.add(mesh(GEO.shoeUpper, M.shoe, 0, 0.075, 0));
+      return { hip, knee };
+    };
+    const legL = makeLeg(-0.3);
+    const legR = makeLeg(0.3);
+
+    // Upper body pivots at the hip for lean and shoulder twist.
+    const upper = joint(rig, 0, HIP, 0);
+    // Slightly flattened front-to-back so the body reads as a chest, not a can.
+    const DEPTH = 0.8;
+    const shorts = mesh(GEO.shorts, M.shorts);
+    shorts.scale.z = 0.86;
+    upper.add(shorts);
+    const torso = mesh(GEO.torso, M.shirt);
+    torso.scale.z = DEPTH;
+    upper.add(torso);
+    const stripe = mesh(GEO.stripe, M.stripe);
+    stripe.scale.z = DEPTH;
+    upper.add(stripe);
+    upper.add(mesh(GEO.neck, M.skin, 0, 2.2, 0));
+    const collar = mesh(GEO.collar, M.stripe, 0, 2.1, 0);
+    collar.rotation.x = Math.PI / 2;
+    collar.scale.set(1.15, 1.0, 1);
+    upper.add(collar);
+
+    // Head: skin sphere, big round eyes with a highlight, a smile.
+    const head = joint(upper, 0, HEAD_Y, 0);
+    head.add(mesh(GEO.head, M.skin));
+    for (const sx of [-1, 1]) {
+      const eye = mesh(GEO.eye, M.eye, sx * 0.23, 0.08, -0.53);
+      eye.scale.set(0.9, 1.15, 0.55);
+      head.add(eye);
+      const shine = new THREE.Mesh(GEO.shine, M.shine);
+      shine.position.set(sx * 0.23 + 0.04, 0.14, -0.6);
+      head.add(shine);
+    }
+    const mouth = mesh(GEO.mouth, M.mouth, 0, -0.2, -0.575);
+    mouth.rotation.set(-0.35, 0, Math.PI);
+    mouth.scale.set(1, 0.75, 1);
+    head.add(mouth);
+
+    // Hair lives in its own group so the style can be swapped at runtime.
+    const hair = joint(head, 0, 0, 0);
+    function setHair(style) {
+      while (hair.children.length) hair.remove(hair.children[0]);
+      (HAIR[style] || HAIR.short).build(hair, M.hair);
+      hair.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      def.hair = HAIR[style] ? style : 'short';
+    }
+    setHair(def.hair);
+
+    // Arms: shoulder (rotation order YXZ: yaw applied last) -> upper arm ->
+    // elbow (bends on X) -> forearm -> hand. The paddle rides the right hand.
+    const makeArm = (x) => {
+      const shoulder = joint(upper, x, 1.86, 0);
+      shoulder.rotation.order = 'YXZ';
+      shoulder.add(mesh(GEO.shoulder, M.shirt));
+      shoulder.add(mesh(GEO.sleeve, M.shirt, 0, -0.2, 0));
+      shoulder.add(mesh(GEO.upperArm, M.skin, 0, -UPPER_ARM / 2, 0));
+      const elbow = joint(shoulder, 0, -UPPER_ARM, 0);
+      elbow.add(mesh(GEO.elbow, M.skin));
+      elbow.add(mesh(GEO.forearm, M.skin, 0, -FOREARM / 2, 0));
+      elbow.add(mesh(GEO.hand, M.skin, 0, -FOREARM - 0.05, 0));
+      return { shoulder, elbow };
+    };
+    const armL = makeArm(-0.86);
+    const armR = makeArm(0.86);
+
+    const paddle = joint(armR.elbow, 0, -FOREARM - 0.08, 0);
+    paddle.add(mesh(GEO.grip, M.grip, 0, -0.2, 0));
+    paddle.add(mesh(GEO.face, M.paddle, 0, -0.9, 0));
+
+    let marker = null;
+    if (def.marker) {
+      marker = new THREE.Mesh(GEO.marker, new THREE.MeshStandardMaterial({
+        color: TEAM_COLORS.a, emissive: TEAM_COLORS.a, emissiveIntensity: 0.45, roughness: 0.5,
+      }));
+      marker.rotation.x = Math.PI;
+      marker.position.y = 6.75;
+      root.add(marker);
+    }
+
+    /* Pose channels (radians). Positive hip = thigh forward, negative knee =
+       shin folds back. Positive elbow = forearm folds forward. Arms: x lifts
+       forward, y swings across the body (forehand = negative to positive),
+       z lifts out to the side. Channels blend toward a target each frame. */
+    const cur = {
+      lean: -0.18, twist: 0, bounce: 0,
+      hipL: 0.35, kneeL: -0.6, hipR: 0.35, kneeR: -0.6,
+      lx: 0.3, ly: 0, lz: -0.3, elL: 1.1,
+      rx: 0.3, ry: -0.3, rz: 0.3, elR: 1.0,
+      roll: 0, // paddle roll about the arm: PI/2 turns the face to lead the swing
+    };
+
+    // Overhead smash, 1.6 s loop, as keyframes (p = 0..1 through the loop).
+    // Load into the trophy pose (side-on, free hand pointing up, paddle
+    // dropped behind the head), drive up and uncoil so the elbow snaps
+    // straight at contact high in front, then pull down across the body.
+    const READY_POSE = {
+      lean: -0.18, twist: 0, bounce: 0,
+      hipL: 0.35, kneeL: -0.6, hipR: 0.35, kneeR: -0.6,
+      lx: 0.3, ly: 0, lz: -0.3, elL: 1.1,
+      rx: 0.3, ry: -0.3, rz: 0.3, elR: 1.0, roll: 0,
+    };
+    const OVERHEAD = [
+      { p: 0, pose: READY_POSE },
+      { p: 0.32, pose: { lean: 0.08, twist: -0.6, bounce: 0, hipL: 0.55, kneeL: -1.0, hipR: 0.3, kneeR: -0.8,
+        lx: 2.7, ly: 0, lz: -0.15, elL: 0.15, rx: 2.5, ry: 0, rz: 0.35, elR: 2.0, roll: 0 } },
+      { p: 0.4, pose: { lean: 0.06, twist: -0.62, bounce: 0, hipL: 0.58, kneeL: -1.05, hipR: 0.32, kneeR: -0.85,
+        lx: 2.75, ly: 0, lz: -0.15, elL: 0.15, rx: 2.5, ry: 0, rz: 0.35, elR: 2.05, roll: 0 } },
+      { p: 0.47, pose: { lean: -0.05, twist: 0.05, bounce: 0.12, hipL: 0.15, kneeL: -0.2, hipR: 0.1, kneeR: -0.2,
+        lx: 1.0, ly: 0.3, lz: -0.3, elL: 1.3, rx: 2.9, ry: 0, rz: 0.2, elR: 0.1, roll: 0 } },
+      { p: 0.62, pose: { lean: -0.4, twist: 0.5, bounce: 0, hipL: 0.4, kneeL: -0.6, hipR: 0.2, kneeR: -0.5,
+        lx: 0.5, ly: 0.4, lz: -0.4, elL: 1.2, rx: 0.8, ry: 0.6, rz: 0.1, elR: 0.4, roll: 0 } },
+      { p: 1, pose: READY_POSE },
+    ];
+    function keyed(frames, p) {
+      let i = 0;
+      while (i < frames.length - 2 && p >= frames[i + 1].p) i++;
+      const a = frames[i], b = frames[i + 1];
+      let k = Math.min(1, Math.max(0, (p - a.p) / (b.p - a.p)));
+      k = k * k * (3 - 2 * k); // smoothstep
+      const out = {};
+      for (const key in a.pose) out[key] = a.pose[key] + (b.pose[key] - a.pose[key]) * k;
+      return out;
+    }
+
+    function targetPose(mode, t) {
+      if (mode === 'overhead') return keyed(OVERHEAD, (t % 1.6) / 1.6);
+      if (mode === 'run') {
+        const f = t * 9.5, sL = Math.sin(f), cL = Math.cos(f);
+        return {
+          lean: -0.3, twist: sL * 0.12, bounce: Math.abs(sL) * 0.12,
+          // Knee folds most while the leg swings forward from behind.
+          hipL: 0.65 * sL,  kneeL: -0.25 - 1.1 * Math.max(0, cL),
+          hipR: -0.65 * sL, kneeR: -0.25 - 1.1 * Math.max(0, -cL),
+          lx: 0.1 - 0.75 * sL, ly: 0, lz: -0.2, elL: 1.45,
+          rx: 0.25 + 0.55 * sL, ry: -0.35, rz: 0.3, elR: 1.25, roll: 0,
+        };
+      }
+      if (mode === 'backhand') {
+        // Flat one-handed backhand, 1.5 s loop. Mirror of the forehand: the
+        // shoulders coil left and the paddle goes back past the left hip
+        // with a bent elbow (left hand guiding it), then the arm extends and
+        // sweeps left-to-right on a level path. Contact is out in front on
+        // the left, where the rolled face looks straight at the net.
+        const p = (t % 1.5) / 1.5;
+        const ease = (k) => 1 - Math.pow(1 - k, 3);
+        let ry, twist, elR, knee, lx, ly, lz, elL;
+        if (p < 0.3) {            // coil: paddle back to the left hip
+          const k = ease(p / 0.3);
+          ry = 0.4 + 0.2 * k; twist = 1.1 * k; elR = 0.6 - 0.25 * k; knee = -0.6 - 0.25 * k;
+          lx = 0.6 + 0.3 * k; ly = 0.3 * k; lz = -0.25 + 0.15 * k; elL = 1.0 + 0.3 * k;
+        } else if (p < 0.42) {    // uncoil: level sweep, elbow straightens
+          const k = ease((p - 0.3) / 0.12);
+          ry = 0.6 - 0.6 * k; twist = 1.1 - 1.3 * k; elR = 0.35 - 0.25 * Math.min(1, k * 2); knee = -0.85 + 0.3 * k;
+          lx = 0.9 - 1.2 * k; ly = 0.3 - 0.3 * k; lz = -0.1 - 0.5 * k; elL = 1.3 - 1.0 * k;
+        } else {                  // hold the finish, then back to ready
+          const k = ease(Math.min(1, (p - 0.42) / 0.5));
+          ry = 0.4 * k; twist = -0.2 * (1 - k); elR = 0.1 + 0.5 * k; knee = -0.55 - 0.05 * k;
+          lx = -0.3 + 0.9 * k; ly = 0; lz = -0.6 + 0.35 * k; elL = 0.3 + 0.7 * k;
+        }
+        return {
+          lean: -0.2, twist, bounce: 0,
+          // closed stance: right foot steps across toward the ball
+          hipL: 0.15, kneeL: knee + 0.2, hipR: 0.5, kneeR: knee - 0.15,
+          lx, ly, lz, elL,
+          rx: 1.0, ry, rz: 0, elR, roll: Math.PI / 2,
+        };
+      }
+      if (mode === 'swing') {
+        // Flat forehand, 1.5 s loop. The arm sweeps around the body on a
+        // level, waist-high path (fixed tilt, no side lift), and the paddle is
+        // rolled so its face stays upright and leads the swing. Contact is
+        // out to the side, where the face looks straight at the net.
+        const p = (t % 1.5) / 1.5;
+        const ease = (k) => 1 - Math.pow(1 - k, 3);
+        const READY = -0.9, BACK = -2.5, THROUGH = 0.5;
+        let ry, twist, elR, knee;
+        if (p < 0.3) {            // take the paddle straight back
+          const k = ease(p / 0.3);
+          ry = READY + (BACK - READY) * k; twist = -0.6 * k; elR = 0.5 + 0.1 * k; knee = -0.6 - 0.25 * k;
+        } else if (p < 0.42) {    // sweep through level, arm extending
+          const k = ease((p - 0.3) / 0.12);
+          ry = BACK + (THROUGH - BACK) * k; twist = -0.6 + 1.05 * k; elR = 0.6 - 0.45 * k; knee = -0.85 + 0.3 * k;
+        } else {                  // finish across the body, settle to ready
+          const k = ease(Math.min(1, (p - 0.42) / 0.5));
+          ry = THROUGH + (READY - THROUGH) * k; twist = 0.45 * (1 - k); elR = 0.15 + 0.35 * k; knee = -0.55 - 0.05 * k;
+        }
+        return {
+          lean: -0.2, twist, bounce: 0,
+          hipL: 0.5, kneeL: knee - 0.15, hipR: 0.15, kneeR: knee + 0.2,
+          lx: 0.9, ly: 0.4, lz: -0.35, elL: 0.6,
+          rx: 1.0, ry, rz: 0, elR, roll: Math.PI / 2,
+        };
+      }
+      // idle: athletic ready stance, knees soft, paddle up in front
+      const b = Math.sin(t * 2.2);
+      return {
+        lean: -0.18, twist: Math.sin(t * 0.9) * 0.05, bounce: 0,
+        hipL: 0.35 + b * 0.04, kneeL: -0.6 - b * 0.08,
+        hipR: 0.35 + b * 0.04, kneeR: -0.6 - b * 0.08,
+        lx: 0.3, ly: 0, lz: -0.3, elL: 1.1 + b * 0.05,
+        rx: 0.3, ry: -0.3, rz: 0.3, elR: 1.0 + b * 0.05, roll: 0,
+      };
+    }
+
+    // Height of the hip above the floor for a given thigh/knee angle, so a
+    // crouch lowers the body and the feet stay planted.
+    const legHeight = (hip, knee) => THIGH * Math.cos(hip) + SHIN * Math.cos(hip + knee) + ANKLE;
+
+    function update(mode, t, dt) {
+      const tgt = targetPose(mode, t);
+      const k = 1 - Math.exp(-dt * (mode === 'swing' || mode === 'backhand' || mode === 'overhead' ? 30 : 12));
+      for (const key in cur) cur[key] += (tgt[key] - cur[key]) * k;
+
+      legL.hip.rotation.x = cur.hipL;  legL.knee.rotation.x = cur.kneeL;
+      legR.hip.rotation.x = cur.hipR;  legR.knee.rotation.x = cur.kneeR;
+      const stand = Math.max(legHeight(cur.hipL, cur.kneeL), legHeight(cur.hipR, cur.kneeR));
+      rig.position.y = stand - HIP + cur.bounce;
+
+      upper.rotation.x = cur.lean;
+      upper.rotation.y = cur.twist;
+      head.rotation.x = -cur.lean * 0.7; // keep eyes level when leaning
+      armL.shoulder.rotation.set(cur.lx, cur.ly, cur.lz);
+      armL.elbow.rotation.x = cur.elL;
+      armR.shoulder.rotation.set(cur.rx, cur.ry, cur.rz);
+      armR.elbow.rotation.x = cur.elR;
+      paddle.rotation.y = cur.roll;
+
+      if (marker) {
+        marker.position.y = 6.75 + Math.sin(t * 3) * 0.15;
+        marker.rotation.y = t * 1.5;
+      }
+    }
+
+    return { def, root, update, setHair };
+  }
+
+  window.KitchenClash = Object.assign(window.KitchenClash || {}, { createCharacter, CHARACTERS, TEAM_COLORS, HAIR, HAIR_STYLES });
+
+  /* =====================================================================
+     COURT  (feet; net on z = 0, your team plays the +Z half)
+     ===================================================================== */
+  const COURT = {
+    halfW: 10,        // 20 ft wide
+    halfL: 22,        // 44 ft long
+    kitchen: 7,       // non-volley zone depth from the net
+    line: 2 / 12,     // 2-inch lines
+    netCenter: 34 / 12,
+    netPost: 36 / 12,
+    postX: 11,        // posts stand 1 ft outside each sideline
+  };
+  const AREA = { halfW: 17, halfL: 32 }; // fenced play area
+
+  const isTouch = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
+
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.75 : 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  {
+    const c = document.createElement('canvas');
+    c.width = 4; c.height = 256;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#4f9fea');
+    grad.addColorStop(0.55, '#a9d6ff');
+    grad.addColorStop(1, '#e6f3ff');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 4, 256);
+    scene.background = new THREE.CanvasTexture(c);
+  }
+  scene.fog = new THREE.Fog(0xcde6fb, 120, 260);
+
+  scene.add(new THREE.HemisphereLight(0xe6f3ff, 0x3f5f45, 0.72));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(-22, 48, 26);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
+  Object.assign(sun.shadow.camera, { left: -38, right: 38, top: 40, bottom: -40, near: 1, far: 140 });
+  sun.shadow.bias = -0.0005;
+  scene.add(sun);
+  scene.add(sun.target);
+
+  const stdMat = (color, roughness = 0.85) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
+
+  function flat(w, l, color, y, x = 0, z = 0) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), stdMat(color, 0.92));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, y, z);
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
+  // Ground, apron, playing surface, kitchens.
+  flat(600, 600, 0x5d8f4a, -0.05);
+  flat(AREA.halfW * 2, AREA.halfL * 2, 0x1f6b57, 0);
+  flat(COURT.halfW * 2, COURT.halfL * 2, 0x2a56c6, 0.01);
+  flat(COURT.halfW * 2, COURT.kitchen, 0x58a6ea, 0.015, 0, COURT.kitchen / 2);
+  flat(COURT.halfW * 2, COURT.kitchen, 0x58a6ea, 0.015, 0, -COURT.kitchen / 2);
+
+  // Lines (2 in wide). Lines count as in, so they sit on the court's edges.
+  {
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
+    const L = COURT.line, W = COURT.halfW, H = COURT.halfL, K = COURT.kitchen;
+    const strip = (w, l, x, z) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), lineMat);
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(x, 0.02, z);
+      m.receiveShadow = true;
+      scene.add(m);
+    };
+    for (const s of [-1, 1]) {
+      strip(L, H * 2, s * (W - L / 2), 0);          // sidelines
+      strip(W * 2, L, 0, s * (H - L / 2));          // baselines
+      strip(W * 2, L, 0, s * (K - L / 2));          // kitchen (non-volley) lines
+      strip(L, H - K, 0, s * (K + (H - K) / 2));    // centrelines, kitchen line to baseline
+    }
+  }
+
+  // Net: sagging mesh, white tape along the top, centre strap, two posts.
+  {
+    const netH = (x) => COURT.netCenter + (COURT.netPost - COURT.netCenter) * Math.pow(x / COURT.postX, 2);
+    const geo = new THREE.PlaneGeometry(COURT.postX * 2, 1, 66, 1);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      pos.setY(i, pos.getY(i) > 0 ? netH(x) : 0.15);
+    }
+    geo.computeVertexNormals();
+    const tc = document.createElement('canvas');
+    tc.width = 64; tc.height = 64;
+    const g = tc.getContext('2d');
+    g.strokeStyle = 'rgba(20, 22, 30, 0.95)';
+    g.lineWidth = 6;
+    g.strokeRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(tc);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(COURT.postX * 2 / 0.25, COURT.netCenter / 0.25);
+    tex.anisotropy = 4;
+    const net = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      map: tex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.9,
+    }));
+    net.castShadow = true;
+    scene.add(net);
+
+    const top = [];
+    for (let i = 0; i <= 24; i++) {
+      const x = -COURT.postX + (i / 24) * COURT.postX * 2;
+      top.push(new THREE.Vector3(x, netH(x), 0));
+    }
+    const tape = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(top), 48, 0.07, 6, false), stdMat(0xffffff, 0.6));
+    tape.castShadow = true;
+    scene.add(tape);
+
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.17, COURT.netCenter, 0.05), stdMat(0xffffff, 0.6));
+    strap.position.y = COURT.netCenter / 2;
+    scene.add(strap);
+
+    const postGeo = new THREE.CylinderGeometry(0.12, 0.14, COURT.netPost + 0.15, 12);
+    for (const s of [-1, 1]) {
+      const post = new THREE.Mesh(postGeo, stdMat(0x23262e, 0.5));
+      post.position.set(s * COURT.postX, (COURT.netPost + 0.15) / 2, 0);
+      post.castShadow = true;
+      scene.add(post);
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.12, 16), stdMat(0x23262e, 0.5));
+      foot.position.set(s * COURT.postX, 0.06, 0);
+      scene.add(foot);
+    }
+  }
+
+  // Fences: tall chain-link on the sides, low windscreens behind the baselines
+  // so the camera behind your baseline sees over them.
+  {
+    const lc = document.createElement('canvas');
+    lc.width = 32; lc.height = 32;
+    const g = lc.getContext('2d');
+    g.strokeStyle = 'rgba(40, 52, 58, 0.9)';
+    g.lineWidth = 2.2;
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(32, 32); g.moveTo(32, 0); g.lineTo(0, 32); g.stroke();
+    const tex = new THREE.CanvasTexture(lc);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    const FENCE_H = 10;
+    const chain = (len) => {
+      const t = tex.clone();
+      t.needsUpdate = true;
+      t.repeat.set(len / 1.4, FENCE_H / 1.4);
+      return new THREE.MeshStandardMaterial({ map: t, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.8 });
+    };
+    const poleMat = stdMat(0x2b3a33, 0.5);
+    const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, FENCE_H, 8);
+    const railGeo = new THREE.CylinderGeometry(0.08, 0.08, 1, 8);
+    for (const s of [-1, 1]) {
+      const len = AREA.halfL * 2;
+      const side = new THREE.Mesh(new THREE.PlaneGeometry(len, FENCE_H), chain(len));
+      side.rotation.y = Math.PI / 2;
+      side.position.set(s * AREA.halfW, FENCE_H / 2, 0);
+      scene.add(side);
+      for (let z = -AREA.halfL; z <= AREA.halfL; z += 8) {
+        const p = new THREE.Mesh(poleGeo, poleMat);
+        p.position.set(s * AREA.halfW, FENCE_H / 2, z);
+        p.castShadow = true;
+        scene.add(p);
+      }
+      const rail = new THREE.Mesh(railGeo, poleMat);
+      rail.scale.y = len;
+      rail.rotation.x = Math.PI / 2;
+      rail.position.set(s * AREA.halfW, FENCE_H, 0);
+      scene.add(rail);
+
+      const screen = new THREE.Mesh(new THREE.BoxGeometry(AREA.halfW * 2, 3.2, 0.15), stdMat(0x17463a, 0.9));
+      screen.position.set(0, 1.6, s * AREA.halfL);
+      screen.receiveShadow = true;
+      scene.add(screen);
+    }
+  }
+
+  // Bleachers with a crowd, both long sides.
+  const crowd = (() => {
+    const seatMat = stdMat(0x9aa4b5, 0.7);
+    const spots = [];
+    for (const s of [-1, 1]) {
+      for (let row = 0; row < 4; row++) {
+        const x = s * (21 + row * 2.4), h = 1.1 + row * 1.15;
+        const tier = new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 48), seatMat);
+        tier.position.set(x, h / 2, 0);
+        tier.receiveShadow = true;
+        tier.castShadow = true;
+        scene.add(tier);
+        for (let z = -22.5; z <= 22.5; z += 2.1) {
+          if (Math.random() < 0.3) continue;
+          spots.push({ x: x + (Math.random() - 0.5) * 0.4, y: h, z: z + (Math.random() - 0.5) * 0.5, phase: Math.random() * 6.28 });
+        }
+      }
+    }
+    const shirts = [0xe94f4f, 0xf2b134, 0x3fa9ff, 0x2fbf71, 0xffffff, 0x8458d8, 0xff8a2b, 0x1f2a44, 0xf06ab0];
+    const skins = [0xf1c7a3, 0x8d5a3b, 0xc68a5e, 0xffdcc2, 0x5a3825, 0xe0ac7e];
+    const body = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.42, 0.5, 1.7, 8), stdMat(0xffffff, 0.8), spots.length);
+    const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.36, 10, 8), stdMat(0xffffff, 0.8), spots.length);
+    const col = new THREE.Color();
+    spots.forEach((p, i) => {
+      body.setColorAt(i, col.setHex(shirts[i % shirts.length]));
+      head.setColorAt(i, col.setHex(skins[(i * 7) % skins.length]));
+    });
+    body.castShadow = true;
+    scene.add(body, head);
+    const m = new THREE.Matrix4();
+    return {
+      update(t, excite = 0) {
+        spots.forEach((p, i) => {
+          // Idle sway, plus jumping when your team wins a point.
+          const bob = Math.max(0, Math.sin(t * 1.3 + p.phase)) * 0.06 +
+            Math.min(1, excite) * Math.abs(Math.sin(t * 9 + p.phase * 3)) * 0.9;
+          m.makeTranslation(p.x, p.y + 0.85 + bob, p.z);
+          body.setMatrixAt(i, m);
+          m.makeTranslation(p.x, p.y + 2.05 + bob, p.z);
+          head.setMatrixAt(i, m);
+        });
+        body.instanceMatrix.needsUpdate = true;
+        head.instanceMatrix.needsUpdate = true;
+      },
+    };
+  })();
+
+  // Light poles at the corners, and a ring of simple trees in the distance.
+  {
+    const poleMat = stdMat(0x3a4150, 0.5);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 30, 10), poleMat);
+      pole.position.set(sx * 19, 15, sz * 34);
+      pole.castShadow = true;
+      scene.add(pole);
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.6, 0.8), stdMat(0xe8edf5, 0.4));
+      lamp.position.set(sx * 19, 30.5, sz * 34 - sz * 0.6);
+      lamp.lookAt(0, 0, 0);
+      scene.add(lamp);
+    }
+    const n = 46;
+    const leaves = new THREE.InstancedMesh(new THREE.ConeGeometry(4.2, 11, 8), stdMat(0x2f6b3c, 0.9), n);
+    const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5, 0.7, 3, 6), stdMat(0x5b4030, 0.9), n);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.sin(i * 12.9) * 0.05;
+      const r = 70 + ((i * 37) % 23);
+      const k = 0.8 + ((i * 53) % 10) / 20;
+      p.set(Math.cos(a) * r, 0, Math.sin(a) * r * 1.15);
+      s.set(k, k, k);
+      m.compose(p.clone().setY(1.5 * k), q, s);
+      trunks.setMatrixAt(i, m);
+      m.compose(p.clone().setY(8 * k), q, s);
+      leaves.setMatrixAt(i, m);
+    }
+    scene.add(leaves, trunks);
+  }
+
+
+  /* =====================================================================
+     BALL  (fixed 120 Hz physics; no spin or drag, so paths are predictable)
+     ===================================================================== */
+  const G = 24;
+  const BALL_R = 0.2;
+  const BOUNCE_V = 0.66;
+  const BOUNCE_H = 0.85;
+  const STEP = 1 / 120;
+  const REACH = 4.0;
+  const SWEET = 1.6;
+
+  const netHeightAt = (x) => COURT.netCenter + (COURT.netPost - COURT.netCenter) * Math.pow(Math.min(1, Math.abs(x) / COURT.postX), 2);
+
+  const ball = {
+    pos: new THREE.Vector3(), vel: new THREE.Vector3(),
+    held: true, live: false, bounces: 0, lastTeam: null, netted: false,
+    comet: false,       // this shot is your ultimate
+  };
+
+  function stepBall(b, dt) {
+    const pz = b.pos.z, py = b.pos.y;
+    b.vel.y -= G * dt;
+    b.pos.addScaledVector(b.vel, dt);
+    if (!b.netted && (pz > 0) !== (b.pos.z > 0) && Math.abs(b.pos.x) < COURT.postX) {
+      const f = pz / (pz - b.pos.z);
+      const yc = py + (b.pos.y - py) * f;
+      if (yc < netHeightAt(b.pos.x) + BALL_R * 0.5) {
+        b.netted = true;
+        b.pos.z = pz > 0 ? 0.25 : -0.25;
+        b.vel.z *= -0.12;
+        b.vel.x *= 0.4;
+        if (b.vel.y > 0) b.vel.y *= 0.3;
+        return 'net';
+      }
+    }
+    // Touching the fence marks the ball: once it has bounced, a fence hit makes it dead.
+    if (Math.abs(b.pos.x) > AREA.halfW - 0.3) { b.pos.x = Math.sign(b.pos.x) * (AREA.halfW - 0.3); b.vel.x *= -0.25; b.fenced = true; }
+    if (Math.abs(b.pos.z) > AREA.halfL - 0.3) { b.pos.z = Math.sign(b.pos.z) * (AREA.halfL - 0.3); b.vel.z *= -0.25; b.fenced = true; }
+    if (b.pos.y < BALL_R) {
+      b.pos.y = BALL_R;
+      if (b.vel.y < -1.2) {
+        b.vel.y = -b.vel.y * BOUNCE_V;
+        b.vel.x *= BOUNCE_H;
+        b.vel.z *= BOUNCE_H;
+        return 'bounce';
+      }
+      b.vel.y = 0;
+      b.vel.x *= 0.985;
+      b.vel.z *= 0.985;
+      return 'roll';
+    }
+    return null;
+  }
+
+  function predict(maxT = 3.5) {
+    const sim = { pos: ball.pos.clone(), vel: ball.vel.clone(), netted: ball.netted };
+    const out = [];
+    let b = ball.bounces, t = 0;
+    const dt = 1 / 120;
+    for (let i = 0; t < maxT; i++) {
+      t += dt;
+      const ev = stepBall(sim, dt);
+      if (ev === 'bounce' || ev === 'roll') b++;
+      if (i % 2 === 1) out.push({ t, x: sim.pos.x, y: sim.pos.y, z: sim.pos.z, b });
+      if (b >= 2) break;
+      if (sim.fenced && b >= 1) break;   // dead once it bounces into the fence
+    }
+    return out;
+  }
+
+  /* =====================================================================
+     SHOTS
+     ===================================================================== */
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const randn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function solveShot(P, tx, tz, t, clear) {
+    const v = new THREE.Vector3();
+    for (let i = 0; i < 40; i++) {
+      v.set((tx - P.x) / t, (BALL_R - P.y + 0.5 * G * t * t) / t, (tz - P.z) / t);
+      const tn = -P.z / v.z;
+      if (tn > 0 && tn < t) {
+        const yn = P.y + v.y * tn - 0.5 * G * tn * tn;
+        if (yn < netHeightAt(P.x + v.x * tn) + clear) { t *= 1.07; continue; }
+      }
+      break;
+    }
+    return v;
+  }
+
+  /* =====================================================================
+     ULTIMATE LAB
+     A practice court: Rex feeds you a ball, you hit it back (with the
+     selected ultimate when it's armed), and Rex and Juno try to return it.
+     ===================================================================== */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
+  };
+
+  const ULTS = [
+    { id: 'comet', name: 'One Shot', kind: 'Shot', color: '#ff7a1a', hex: 0xff7a1a, live: true, hint: 'Blazing fast hit',
+      desc: 'Your next hit becomes a blazing 75 ft/s drive with a fire trail. Rivals start moving 0.1 s late.',
+      stats: [['Ball speed', '75 ft/s (a drive is 43)'], ['Rivals', 'React 0.1 s late'], ['Lasts', 'One hit']] },
+    { id: 'curve', name: 'Flaky', kind: 'Shot', color: '#c45cff', hex: 0xc45cff, hint: 'Bends after the net',
+      desc: 'Your next hit bends hard sideways once it is in the air. Rivals run for the straight line until they read the bend just after the net.',
+      stats: [['Ball speed', '45 ft/s'], ['Bend', 'About 8 ft sideways'], ['Rivals', 'Chase the straight line first']] },
+    { id: 'frost', name: 'Cold Snap', kind: 'Shot', color: '#7fe3ff', hex: 0x7fe3ff, hint: 'Freezing kitchen drop',
+      desc: 'A soft drop into the rival kitchen that bounces low, about half as high as normal. The rival nearest to where it lands is frozen in place for 1.05 s, and both rivals lose 30% of their fatigue bar, so they run at 75% speed.',
+      stats: [['Lands', '3 to 5 ft past the net'], ['Bounce', 'About half of normal'], ['Rivals', 'Nearest one frozen 1.05 s'], ['Fatigue', 'Both rivals lose 30% (75% run speed)']] },
+    { id: 'mirage', name: 'Mirage', kind: 'Shot', color: '#ff5fb0', hex: 0xff5fb0, hint: 'Splits into three',
+      desc: 'Your shot splits into three balls. Two are fakes that vanish just before landing, so each rival may chase the wrong one.',
+      stats: [['Ball speed', '50 ft/s'], ['Fakes', '2, gone 0.15 s before landing'], ['Rivals', 'Each picks one of the three']] },
+    { id: 'warp', name: 'Time Warp', kind: 'Boost', color: '#4fd1c5', hex: 0x4fd1c5, hint: 'Slows the world',
+      desc: 'For 2.2 s the ball moves at 70% speed and the rivals at 45%, while you stay at full speed. Your shots in that window are normal drives.',
+      stats: [['Lasts', '2.2 s'], ['Ball', '70% speed'], ['Rivals', '45% speed']] },
+    { id: 'wind', name: 'Reborn', kind: 'Boost', color: '#7be05a', hex: 0x7be05a, hint: 'Refill and sprint',
+      desc: 'Refills your fatigue bar at once, and you run 30% faster for 6 s. The lab starts each rally with you tired, at 45%, and feeds wide, so the change is easy to see.',
+      stats: [['Fatigue', 'Refilled to 100%'], ['Run speed', '+30% for 6 s'], ['Lasts', '6 s']] },
+    { id: 'glass', name: 'Firewall', kind: 'Boost', color: '#ff6a1f', hex: 0xff6a1f, hint: 'Blocks their returns',
+      desc: 'Raises a wall of fire over the middle third of the net for 4 s. Any ball the rivals hit through it bounces straight back to their side, but balls that cross the outer thirds get past. Your own shots pass through it.',
+      stats: [['Lasts', '4 s'], ['Size', 'About 7 ft wide, 12 ft tall'], ['Blocks', 'The middle third of the net']] },
+    { id: 'quake', name: 'Earthquake', kind: 'Shot', color: '#d9894a', hex: 0xd9894a, hint: 'Cracks the court',
+      desc: 'Your next hit shakes the ground and cracks the rival court where the ball will land. The shaking keeps rivals off balance until it lands, then the ball kicks up off the crack, high and at an unexpected angle.',
+      stats: [['Ball speed', '45 ft/s'], ['Bounce', 'About 1.35x as high, turned 55 to 85 degrees'], ['Rivals', 'Off balance until it lands'], ['Crack', 'Lasts 3 s']] },
+    { id: 'hole', name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, hint: 'Pulls rivals together',
+      desc: 'Opens a black hole halfway between the two rivals for 1 s. Both rivals are dragged toward the middle. They can still run for the ball, but the pull slows them down whenever they run away from the centre. The ball is not affected.',
+      stats: [['Lasts', '1 s'], ['Pull', '6 ft/s toward the centre'], ['Rivals', 'Can fight it: 14 ft/s run minus the pull'], ['Ball', 'Not affected']] },
+    { id: 'gas', name: 'Poison', kind: 'Boost', color: '#b44dd6', hex: 0xb44dd6, hint: 'Spoils both rivals\' hits',
+      desc: 'A cloud of purple gas wraps around both rivals for 3 s. While they are in it, more than half of their hits go wrong and fly long or wide.',
+      stats: [['Lasts', '3 s'], ['Target', 'Both rivals'], ['Mis-hits', '55% of their hits, normally 0%']] },
+    { id: 'cosmo', name: 'Cosmo', kind: 'Boost', color: '#ffc23d', hex: 0xffc23d, hint: 'Golden ring knockback',
+      desc: 'You shout "Cosmo!" and fire a giant golden ring at the rivals. It knocks the closer rival all the way back to the baseline and the farther one out to the sideline, and drops both fatigue bars to 50%, so they run at 75% speed for the rest of the rally.',
+      stats: [['Ring speed', '60 ft/s'], ['Knockback', 'Closer rival to the baseline, farther to the sideline'], ['Rival fatigue', 'Set to 50% (75% run speed)']] },
+    { id: 'tide', name: 'High Tide', kind: 'Boost', color: '#2fb4ff', hex: 0x2fb4ff, hint: 'Rivals slide on water',
+      desc: 'Water floods the rival court for 7 s and two small fish swim in it. Any rival who starts moving cannot stop: they keep sliding and can only turn slowly until they hit the edge of the play area.',
+      stats: [['Lasts', '7 s'], ['Rivals', 'Cannot stop once they move'], ['Turning', 'About 60 degrees per second']] },
+  ];
+  // Order the list is shown in (and the order of the 1-9, 0, -, = keys).
+  const ORDER = ['glass', 'quake', 'mirage', 'wind', 'hole', 'cosmo', 'curve', 'gas', 'comet', 'warp', 'frost', 'tide'];
+  ULTS.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
+  const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='];   // key that picks each ultimate
+  let fx_cosmoHit = () => {};
+  const UL = Object.fromEntries(ULTS.map((u) => [u.id, u]));
+
+  const lab = Object.assign({ ult: 'comet', auto: true, speed: 1, cam: 'behind', paths: true, sound: true }, store.get('kc-lab', {}));
+  if (!UL[lab.ult]) lab.ult = 'comet';
+  const saveLab = () => store.set('kc-lab', lab);
+
+  const HUMAN_SPEED = 15, RIVAL_SPEED = 14, RIVAL_REACT = 0.28, RIVAL_REACH = 2.8;
+  const FATIGUE = { drain: 0.045, refill: 0.045, still: 1.5 };
+  const speedMult = (s) => (s >= 0.75 ? 1 : s >= 0.5 ? 0.75 : 0.5);
+  const CURVE = { accel: 70, after: 0.12 };
+  const WARP = { time: 2.2, ball: 0.7, rivals: 0.45 };
+  const WIND = { time: 6, boost: 1.3, tired: 0.45 };
+  const FROST = { freeze: 1.05, tire: 0.3 };   // tire: fatigue both rivals lose
+  const QUAKE = { lift: 1.35, turn: [55, 85], keep: 1.0, crack: 3 };
+  const COMET = { delay: 0.1 };
+  const TIDE = { time: 7, turn: 1.05, start: 1 };   // turn: rad/s; start: speed (ft/s) that counts as moving
+  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };   // flat like a frisbee, at chest height
+  const GAS = { time: 3, mishit: 0.55 };
+  const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10 };   // y: the hole floats above their heads
+  const GLASS = { time: 4, h: 12, z: 0.35, halfW: COURT.postX / 3 };   // middle third of the net, just on your side
+
+  /* ---------------- players ---------------- */
+  function makePlayer(id, x, z) {
+    const d = CHARACTERS.find((c) => c.id === id);
+    const ch = createCharacter(d);
+    scene.add(ch.root);
+    return {
+      id, d, ch, team: d.team, name: id === 'you' ? 'You' : d.name.charAt(0) + d.name.slice(1).toLowerCase(),
+      pos: new THREE.Vector3(x, 0, z), vel: new THREE.Vector3(), yaw: d.team === 'a' ? 0 : Math.PI,
+      clock: Math.random() * 3, swing: null, home: { x, z }, stamina: 1, still: 0,
+      frozen: 0, delay: 0, plan: null, fake: null, fooled: false, closest: 99, status: '', statusT: 0,
+    };
+  }
+  const you = makePlayer('you', 2, 17);
+  const rex = makePlayer('rex', -3.5, -19);
+  const juno = makePlayer('juno', 4, -11);
+  const rivals = [rex, juno];
+  const everyone = [you, rex, juno];
+
+  const STROKE = { swing: { contact: 0.48, end: 1.0 }, backhand: { contact: 0.471, end: 1.0 }, overhead: { contact: 0.752, end: 1.2 } };
+  function stroke(p, bx, by) {
+    const r = p.team === 'a' ? 1 : -1;
+    const mode = by > 5.2 ? 'overhead' : (bx - p.pos.x) * r >= -0.4 ? 'swing' : 'backhand';
+    const s = STROKE[mode];
+    p.swing = { mode, t: Math.max(0, s.contact - 0.1), end: s.end };
+  }
+  function animate(p, dt) {
+    const s = p.team === 'a' ? 1 : -1;
+    const speed = Math.hypot(p.vel.x, p.vel.z);
+    let target = s > 0 ? 0 : Math.PI;
+    if (!p.swing && speed > 2 && p.vel.z * s < speed * 0.6) target = Math.atan2(-p.vel.x, -p.vel.z);
+    let d = target - p.yaw;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    p.yaw += d * (1 - Math.exp(-dt * (p.swing ? 18 : 12)));
+    p.ch.root.position.set(p.pos.x, 0, p.pos.z);
+    p.ch.root.rotation.y = p.yaw;
+    if (p.swing) {
+      p.swing.t += dt;
+      p.ch.update(p.swing.mode, p.swing.t, dt);
+      if (p.swing.t >= p.swing.end) p.swing = null;
+      return;
+    }
+    if (p.frozen > 0) { p.ch.update('idle', 0, dt); return; }
+    const running = speed > 1.5;
+    p.clock += dt * (running ? Math.min(1.25, Math.max(0.45, speed / 13)) : 1);
+    p.ch.update(running ? 'run' : 'idle', p.clock, dt);
+  }
+  function moveTo(p, tx, tz, maxSpeed, dt) {
+    const dx = tx - p.pos.x, dz = tz - p.pos.z, d = Math.hypot(dx, dz);
+    const want = d > 0.25 ? Math.min(maxSpeed, d * 4) : 0;
+    const vx = d > 0 ? (dx / d) * want : 0, vz = d > 0 ? (dz / d) * want : 0;
+    const k = 1 - Math.exp(-dt * 10);
+    p.vel.x += (vx - p.vel.x) * k;
+    p.vel.z += (vz - p.vel.z) * k;
+    p.pos.x += p.vel.x * dt;
+    p.pos.z += p.vel.z * dt;
+    const s = p.team === 'a' ? 1 : -1;
+    p.pos.x = clamp(p.pos.x, -AREA.halfW + 1, AREA.halfW - 1);
+    p.pos.z = s * clamp(p.pos.z * s, 0.8, AREA.halfL - 1);
+  }
+  function slide(p, tx, tz, maxSpeed, dt) {
+    const sp = Math.hypot(p.vel.x, p.vel.z);
+    if (sp < TIDE.start) { moveTo(p, tx, tz, maxSpeed, dt); return; }
+    let a = Math.atan2(p.vel.z, p.vel.x);
+    const want = Math.atan2(tz - p.pos.z, tx - p.pos.x);
+    let d = Math.atan2(Math.sin(want - a), Math.cos(want - a));
+    a += clamp(d, -TIDE.turn * dt, TIDE.turn * dt);
+    const v = Math.max(sp, Math.min(maxSpeed, sp + 6 * dt));   // can speed up, never slow down
+    p.vel.set(Math.cos(a) * v, 0, Math.sin(a) * v);
+    const bx = p.pos.x + p.vel.x * dt, bz = p.pos.z + p.vel.z * dt;
+    p.pos.x = bx; p.pos.z = bz;
+    const s = p.team === 'a' ? 1 : -1;
+    p.pos.x = clamp(p.pos.x, -AREA.halfW + 1, AREA.halfW - 1);
+    p.pos.z = s * clamp(p.pos.z * s, 0.8, AREA.halfL - 1);
+    if (p.pos.x !== bx) p.vel.x = 0;   // bumped the fence or the net: that direction stops
+    if (p.pos.z !== bz) p.vel.z = 0;
+  }
+  const drive = (p, tx, tz, maxSpeed, dt) => (S.tideT > 0 ? slide : moveTo)(p, tx, tz, maxSpeed, dt);
+  const horiz = (p, b) => Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z);
+  function say(p, text, time = 1.2) { p.status = text; p.statusT = time; }
+
+  /* ---------------- ball + fakes ---------------- */
+  Object.assign(ball, { kind: 'plain', curve: 0, age: 0, frost: false, quake: 0 });
+  const fakeBall = () => ({ pos: new THREE.Vector3(), vel: new THREE.Vector3(), netted: false, bounces: 0, age: 0, curve: 0, frost: false, alive: false, fade: 0 });
+  const fakes = [fakeBall(), fakeBall()];
+
+  function launch(b, P, v) {
+    b.pos.copy(P); b.vel.copy(v);
+    b.netted = false; b.fenced = false; b.bounces = 0; b.age = 0; b.curve = 0; b.frost = false; b.quake = 0;
+  }
+  // One physics step, plus the lab's extras: curve force and the frost bounce.
+  function stepB(b) {
+    if (b.curve && b.bounces === 0 && b.age > CURVE.after) b.vel.x += b.curve * STEP;
+    b.age += STEP;
+    const ev = stepBall(b, STEP);
+    if (ev === 'bounce') {
+      b.bounces++;
+      if (b.frost && b.bounces === 1) { b.vel.y *= 0.5; b.vel.x *= 0.5; b.vel.z *= 0.5; }
+      // Earthquake: the crack kicks the ball up high and turns it (quake = turn angle, radians).
+      if (b.quake && b.bounces === 1) {
+        const c = Math.cos(b.quake), s = Math.sin(b.quake), vx = b.vel.x, vz = b.vel.z;
+        b.vel.x = (vx * c - vz * s) * QUAKE.keep;
+        b.vel.z = (vx * s + vz * c) * QUAKE.keep;
+        b.vel.y *= QUAKE.lift;
+        b.quake = 0;
+      }
+    } else if (ev === 'roll' && b.bounces < 2) b.bounces = 2;
+    return ev;
+  }
+  // Where a ball will go. curve overrides the ball's own bend (0 = the straight line a rival expects).
+  // quake = false gives the bounce a rival expects before the crack shows.
+  function simulate(src, maxT = 3.2, curve = src.curve, quake = true) {
+    const s = { pos: src.pos.clone(), vel: src.vel.clone(), netted: src.netted, bounces: src.bounces, age: src.age, curve, frost: src.frost, quake: quake ? src.quake || 0 : 0 };
+    const out = [];
+    let t = 0;
+    for (let i = 0; t < maxT; i++) {
+      t += STEP;
+      stepB(s);
+      if (i % 2) out.push({ t, x: s.pos.x, y: s.pos.y, z: s.pos.z, b: s.bounces });
+      if (s.bounces >= 2) break;
+      if (s.fenced && s.bounces >= 1) break;   // dead once it bounces into the fence
+    }
+    return out;
+  }
+  const firstBounce = (smp) => smp.find((s) => s.b >= 1) || smp[smp.length - 1];
+
+  /* ---------------- rally state ---------------- */
+  const S = {
+    phase: 'ready', phaseT: 0, time: 0, ballT: 0, acc: 0,
+    armed: false, warpT: 0, windT: 0, glassT: 0, holeT: 0, hole: { x: 0, z: -12 }, gasT: 0, gasOn: null, cosmo: null, tideT: 0, pendingWhy: '', autoWind: -1,
+    pending: null,              // a rival return heading for the glass wall
+    shot: null,                 // what your last hit was: { kind, speed, land, fakeLand, crossAt, revealAt, revealed }
+    result: null, replanT: 0, shake: 0,
+  };
+  const tally = Object.fromEntries(['plain', ...ULTS.map((u) => u.id)].map((k) => [k, { fired: 0, win: 0, ret: 0 }]));
+
+  function rivalsCenterX() { return (rex.pos.x + juno.pos.x) / 2; }
+  function openGap() {
+    let best = 0, bestScore = -1;
+    for (const x of [-8, -4, 0, 4, 8]) {
+      const sc = Math.min(...rivals.map((r) => Math.abs(r.pos.x - x))) + Math.random() * 3;
+      if (sc > bestScore) { bestScore = sc; best = x; }
+    }
+    return best;
+  }
+
+  function resetRally() {
+    S.phase = 'ready'; S.phaseT = 0; S.result = null; S.shot = null; S.pending = null;
+    ball.held = true; ball.live = false; ball.kind = 'plain'; ball.lastTeam = null;
+    fakes.forEach((f) => { f.alive = false; });
+    rivals.forEach((r) => { r.plan = null; r.fake = null; r.fooled = false; r.frozen = 0; r.delay = 0; r.closest = 99; r.stamina = 1; r.knock = null; });
+    you.plan = null;
+    if (lab.ult === 'wind' && S.windT <= 0) you.stamina = WIND.tired;
+    fx.clearPaths();
+  }
+
+  function feed() {
+    const wide = lab.ult === 'wind';
+    const tx = wide ? (you.pos.x > 0 ? -1 : 1) * rand(6.5, 8.5) : rand(-5, 5);
+    const tz = rand(15, 18.5);
+    const P = new THREE.Vector3(rex.pos.x - 1.1, 2.5, rex.pos.z + 1.2);
+    launch(ball, P, solveShot(P, tx, tz, 1.65, 1.5));
+    ball.held = false; ball.live = true; ball.kind = 'plain'; ball.lastTeam = 'b';
+    stroke(rex, P.x, P.y);
+    sfx.hit('plain', 0.6);
+    S.phase = 'feed'; S.phaseT = 0; S.ballT = 0;
+    planYou();
+    if (lab.auto) {
+      const u = UL[lab.ult];
+      if (u.kind === 'Shot') arm(true);
+      if (u.id === 'wind' && S.windT <= 0) S.autoWind = 0.45;
+      if (u.id === 'warp' && S.warpT <= 0) S.autoWind = 0.8;   // starts just before you hit
+    }
+  }
+
+  /* ---------------- you ---------------- */
+  const youSpeed = () => HUMAN_SPEED * speedMult(you.stamina) * (S.windT > 0 ? WIND.boost : 1);
+  function planYou() {
+    // Take the feed out of the air as it drops through 3 to 5 ft (a high contact
+    // lets fast shots clear the net), or after the bounce if that is too far.
+    let pick = null, prevY = 99;
+    for (const s of simulate(ball, 3.5)) {
+      const down = s.y < prevY; prevY = s.y;
+      const air = s.b === 0 && down && s.y <= 5.2 && s.y >= 3 && s.z > 7;
+      const low = s.b === 1 && s.y <= 3.8 && s.y >= 1.3 && s.z > 3;
+      if (!air && !low) continue;
+      const x = s.x - SWEET, z = s.z + 0.4;
+      pick = { x, z };
+      if (Math.hypot(x - you.pos.x, z - you.pos.z) / youSpeed() <= s.t) break;
+    }
+    you.plan = pick;
+  }
+  const canTake = () => ball.pos.z > 3 && (
+    (ball.bounces === 0 && ball.vel.y < 0 && ball.pos.y <= 5.3 && ball.pos.y >= 2.8 && ball.pos.z > 6) ||
+    (ball.bounces === 1 && ball.pos.y <= 4.6 && ball.pos.y >= 1.2));
+  function tire(p, dt) {
+    const speed = Math.hypot(p.vel.x, p.vel.z);
+    if (speed > 1) { p.still = 0; p.stamina = Math.max(0, p.stamina - FATIGUE.drain * (speed / HUMAN_SPEED) * dt); }
+    else { p.still += dt; if (p.still > FATIGUE.still) p.stamina = Math.min(1, p.stamina + FATIGUE.refill * dt); }
+  }
+  function updateYou(dt) {
+    if (S.phase === 'feed' && you.plan) moveTo(you, you.plan.x, you.plan.z, youSpeed(), dt);
+    else moveTo(you, you.home.x, you.home.z, Math.min(youSpeed(), 9), dt);
+    if (S.windT > 0) { /* boost keeps you fresh */ } else tire(you, dt);
+  }
+
+  // Your hit. Uses the armed ultimate if there is one.
+  function yourHit() {
+    if (lab.auto && lab.ult === 'glass' && S.glassT <= 0) arm(true);
+    if (lab.auto && lab.ult === 'hole' && S.holeT <= 0) arm(true);
+    if (lab.auto && lab.ult === 'gas' && S.gasT <= 0) arm(true);
+    if (lab.auto && lab.ult === 'cosmo' && !S.cosmo) arm(true);
+    if (lab.auto && lab.ult === 'tide' && S.tideT <= 0) arm(true);   // up before their return
+    S.pending = null;
+    let kind = 'plain';
+    if (S.armed) { kind = lab.ult; S.armed = false; }
+    else if (S.warpT > 0) kind = 'warp';
+    else if (S.windT > 0) kind = 'wind';
+    else if (S.glassT > 0) kind = 'glass';
+    else if (S.holeT > 0) kind = 'hole';
+    else if (S.gasT > 0) kind = 'gas';
+    else if (S.cosmo) kind = 'cosmo';
+    else if (S.tideT > 0) kind = 'tide';
+    const P = ball.pos.clone();
+    const shot = { kind, crossAt: null, revealAt: null, revealed: false, fakeLand: null };
+    let v;
+    if (kind === 'comet') {
+      const tx = openGap() * 0.9, tz = -rand(12, 18);
+      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 75, 0.25);
+      S.shake = 0.6;
+    } else if (kind === 'curve') {
+      const side = rivalsCenterX() > 0 ? -1 : 1;
+      const tx = side * rand(5, 8), tz = -rand(13, 18);
+      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 45, 0.45);
+      // x is linear in the starting sideways speed, so work out the bend
+      // alone, then aim so the bent path lands on target.
+      let y = P.y, vy = v.y, x = 0, vx = 0, age = 0, n = 0;
+      while (y >= BALL_R && n < 1200) {
+        if (age > CURVE.after) vx += side * CURVE.accel * STEP;
+        age += STEP; vy -= G * STEP; y += vy * STEP; x += vx * STEP; n++;
+      }
+      v.x = (tx - P.x - x) / (n * STEP);
+      launch(ball, P, v);
+      ball.curve = side * CURVE.accel;
+      shot.fakeLand = firstBounce(simulate(ball, 3, 0));
+    } else if (kind === 'frost') {
+      const near = rivals.reduce((a, r) => (Math.abs(r.pos.z) < Math.abs(a.pos.z) ? r : a));
+      const tx = clamp(near.pos.x + rand(-2.5, 2.5), -8, 8), tz = -rand(3, 5);
+      v = solveShot(P, tx, tz, 1.15, 0.5);
+      const victim = rivals.reduce((a, r) => (Math.hypot(r.pos.x - tx, r.pos.z - tz) < Math.hypot(a.pos.x - tx, a.pos.z - tz) ? r : a));
+      victim.frozen = FROST.freeze;
+      rivals.forEach((r) => { r.stamina = Math.max(0, r.stamina - FROST.tire); });   // the cold tires both rivals
+      say(victim, 'FROZEN', FROST.freeze);
+      shot.victim = victim;
+      sfx.frost();
+    } else if (kind === 'quake') {
+      const tx = rand(-4, 4), tz = -rand(11, 15);
+      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 45, 0.4);
+      S.shake = 0.5;
+      sfx.rumble();
+    } else if (kind === 'mirage') {
+      const xs = [-8, 0, 8].map((x) => x + rand(-1, 1)).sort(() => Math.random() - 0.5);
+      const t = (x, z) => Math.hypot(x - P.x, z - P.z) / 50;
+      const tz = -rand(13, 18);
+      v = solveShot(P, xs[0], tz, t(xs[0], tz), 0.4);
+      fakes.forEach((f, i) => {
+        const fz = -rand(13, 18);
+        launch(f, P, solveShot(P, xs[i + 1], fz, t(xs[i + 1], fz), 0.4));
+        f.alive = true; f.fade = 1;
+      });
+      sfx.shimmer();
+    } else {
+      const tx = openGap() * 0.85, tz = -rand(13, 19);
+      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 43, 0.35);
+    }
+    if (kind !== 'curve') launch(ball, P, v);
+    ball.kind = kind; ball.lastTeam = 'a';
+    ball.frost = kind === 'frost';
+    if (kind === 'quake') {
+      // Turn toward the side with more open court.
+      const side = ball.pos.x + ball.vel.x * 0.6 > 0 ? -1 : 1;
+      ball.quake = side * THREE.MathUtils.degToRad(rand(QUAKE.turn[0], QUAKE.turn[1]));
+    }
+    shot.speed = ball.vel.length();
+    const smp = simulate(ball, 3.2);
+    if (kind === 'quake') fx.crack(firstBounce(smp));
+    shot.land = firstBounce(smp);
+    if (kind === 'mirage') shot.revealAt = Math.max(0.2, shot.land.t - 0.15);
+    S.shot = shot;
+    S.phase = 'out'; S.phaseT = 0; S.ballT = 0; S.replanT = 0;
+    tally[kind].fired++;
+    hud.tally();
+    stroke(you, P.x, P.y);
+    sfx.hit(kind, 1);
+
+    // Rivals react.
+    rivals.forEach((r) => {
+      r.delay = RIVAL_REACT + (kind === 'comet' ? COMET.delay : 0);
+      if (kind === 'comet') say(r, 'LATE', r.delay);
+      // Earthquake: the shaking ground keeps rivals off balance until the ball lands.
+      if (kind === 'quake') { r.delay = Math.max(r.delay, shot.land.t); say(r, 'SHAKING', shot.land.t); }
+      r.closest = 99; r.fooled = false; r.plan = null;
+      r.fake = kind === 'mirage' ? [ball, ...fakes][Math.floor(Math.random() * 3)] : null;
+    });
+    replanRivals(true);
+    fx.drawPaths(kind, smp, shot);
+    hud.lastShot(shot);
+  }
+
+  function arm(auto) {
+    const u = UL[lab.ult];
+    const wasArmed = S.armed;
+    if (u.kind === 'Shot') {
+      if (S.armed && !auto) return;
+      if (!S.armed) { S.armed = true; sfx.arm(); }
+    } else if (u.id === 'warp') {
+      if (S.warpT > 0) return;
+      S.warpT = WARP.time; sfx.warp();
+    } else if (u.id === 'wind') {
+      if (S.windT > 0) return;
+      S.windT = WIND.time; you.stamina = 1; sfx.wind();
+    } else if (u.id === 'glass') {
+      if (S.glassT > 0) return;
+      S.glassT = GLASS.time; sfx.glass();
+    } else if (u.id === 'tide') {
+      if (S.tideT > 0) return;
+      S.tideT = TIDE.time;
+      sfx.tide();
+    } else if (u.id === 'cosmo') {
+      if (S.cosmo) return;
+      // The ring flies from you toward the rivals; each one is knocked back as it reaches them.
+      const near = rivals.reduce((a, r) => (Math.hypot(r.pos.x - you.pos.x, r.pos.z - you.pos.z) < Math.hypot(a.pos.x - you.pos.x, a.pos.z - you.pos.z) ? r : a));
+      S.cosmo = { t: 0, x0: you.pos.x, z0: you.pos.z - 1, z: you.pos.z - 1, near, hit: new Set() };
+      S.shake = 0.3;
+      sfx.cosmo();
+    } else if (u.id === 'gas') {
+      if (S.gasT > 0) return;
+      S.gasT = GAS.time;
+      rivals.forEach((r) => say(r, 'POISONED', GAS.time));
+      sfx.gas();
+    } else if (u.id === 'hole') {
+      if (S.holeT > 0) return;
+      S.holeT = HOLE.time;
+      S.hole.x = clamp((rex.pos.x + juno.pos.x) / 2, -8, 8);
+      S.hole.z = clamp((rex.pos.z + juno.pos.z) / 2, -18, -9);
+      say(rex, 'BOTH PULLED IN', HOLE.time);
+      sfx.hole();
+    }
+    // Whoever uses an ultimate calls out its name.
+    if (!(u.kind === 'Shot' && wasArmed)) callOut(you, u.name);
+    hud.fire();
+  }
+  function callOut(p, name) {
+    say(p, name.toUpperCase() + '!', 1.5);
+    sfx.speak(name + '!');
+  }
+
+  /* ---------------- rivals ---------------- */
+  function rivalPlan(r, src, curve) {
+    let pick = null, slack = -1e9;
+    const hideQuake = ball.kind === 'quake' && S.shot && !S.shot.revealed;
+    for (const s of simulate(src, 3.2, curve, !hideQuake)) {
+      if (s.b >= 2) break;
+      if (s.z > -0.6 || s.y > 6.2 || s.y < 0.9) continue;
+      if (s.b === 0 && Math.abs(s.z) < COURT.kitchen) continue;   // no volleys in the kitchen
+      const x = s.x + SWEET, z = s.z - 0.4;
+      const need = Math.max(r.delay, 0) + Math.max(r.frozen, 0) + Math.hypot(x - r.pos.x, z - r.pos.z) / (RIVAL_SPEED * speedMult(r.stamina));
+      const sl = s.t - need;
+      if (sl > slack || !pick) { slack = sl; pick = { x, z, slack: sl }; }
+      if (sl >= 0) break;
+    }
+    return pick;
+  }
+  function replanRivals(first) {
+    const k = ball.kind, sh = S.shot;
+    rivals.forEach((r) => {
+      let src = ball, curve = ball.curve;
+      if (k === 'curve' && !sh.revealed) {
+        if (!first) return;          // keep chasing the straight line until the bend is read
+        curve = 0;
+      }
+      if (k === 'mirage' && !sh.revealed) { src = r.fake; curve = 0; }
+      r.plan = rivalPlan(r, src, curve);
+    });
+    if (k !== 'mirage') {
+      // Doubles: whoever can get there sooner takes it; the other covers.
+      const ok = rivals.filter((r) => r.plan && r.frozen <= 0);
+      const pool = ok.length ? ok : rivals.filter((r) => r.plan);
+      if (pool.length === 2) {
+        const [a, b] = pool;
+        const loser = a.plan.slack >= b.plan.slack ? b : a;
+        if (!(k === 'curve' && !sh.revealed && !first)) loser.plan = null;
+      }
+    }
+  }
+  function updateRival(r, dt) {
+    if (r.knock) {
+      // Cosmo knockback: slide fast to the spot, easing out.
+      const k = r.knock;
+      k.t += dt;
+      const e = 1 - Math.pow(1 - Math.min(1, k.t / COSMO.knock), 3);
+      r.pos.x = k.fx + (k.tx - k.fx) * e;
+      r.pos.z = k.fz + (k.tz - k.fz) * e;
+      r.vel.set(0, 0, 0);
+      if (k.t >= COSMO.knock) r.knock = null;
+      if (r.statusT > 0) { r.statusT -= dt; if (r.statusT <= 0) r.status = ''; }
+      return;
+    }
+    if (r.delay > 0) r.delay -= dt;
+    if (r.frozen > 0) { r.frozen -= dt; r.vel.set(0, 0, 0); }
+    else if (r.delay > 0) {
+      if (S.tideT > 0 && Math.hypot(r.vel.x, r.vel.z) >= TIDE.start) slide(r, r.pos.x + r.vel.x, r.pos.z + r.vel.z, RIVAL_SPEED, dt);
+      else r.vel.multiplyScalar(Math.exp(-dt * 8));
+    }
+    else if (S.phase === 'out' && !S.result && r.plan) drive(r, r.plan.x, r.plan.z, RIVAL_SPEED * speedMult(r.stamina), dt);
+    else drive(r, r.home.x, r.home.z, RIVAL_SPEED * 0.6 * speedMult(r.stamina), dt);
+    if (S.tideT > 0 && Math.hypot(r.vel.x, r.vel.z) >= TIDE.start && r.status !== 'SLIDING') say(r, 'SLIDING', 0.5);
+    else if (S.tideT > 0 && r.status === 'SLIDING') r.statusT = Math.max(r.statusT, 0.1);
+    if (S.holeT > 0) {
+      // Black Hole: rivals still run where they want, but the hole drags them
+      // toward the centre the whole time, so running away from it is slow.
+      const side = r === rex ? -1 : 1;
+      const dx = S.hole.x + side * HOLE.spread - r.pos.x, dz = S.hole.z - r.pos.z, d = Math.hypot(dx, dz);
+      if (d > 0.3) {
+        r.pos.x += (dx / d) * Math.min(d, HOLE.pull * dt);
+        r.pos.z = Math.min(-0.8, r.pos.z + (dz / d) * Math.min(d, HOLE.pull * dt));
+      }
+    }
+    if (r.statusT > 0) { r.statusT -= dt; if (r.statusT <= 0) r.status = ''; }
+  }
+  function rivalReturn(r) {
+    const P = ball.pos.clone();
+    // Poison: a gassed rival often mis-hits, long or wide.
+    const sick = S.gasT > 0 && Math.random() < GAS.mishit;
+    if (sick) {
+      const long = Math.random() < 0.5;
+      const tx = long ? rand(-6, 6) : (Math.random() < 0.5 ? -1 : 1) * rand(12.5, 15);
+      const tz = long ? rand(24.5, 28) : rand(10, 18);
+      launch(ball, P, solveShot(P, tx, tz, 1.3, 1.0));
+      say(r, 'MIS-HIT!', 1);
+    } else launch(ball, P, solveShot(P, rand(-6, 6), rand(9, 16), 1.25, 1.0));
+    ball.kind = 'plain'; ball.lastTeam = 'b';
+    stroke(r, P.x, P.y);
+    sfx.hit('plain', 0.7);
+    fakes.forEach((f) => { f.alive = false; });
+    rivals.forEach((q) => { q.plan = null; });
+    // With the glass up, wait to see whether the wall sends it back.
+    if (S.glassT > 0 || sick) { S.pending = r; S.pendingWhy = sick ? 'gas' : 'glass'; return; }
+    finish('ret', 'Returned', `${r.name} got it back`);
+  }
+
+  /* ---------------- results ---------------- */
+  function finish(kind, big, small) {
+    if (S.result) return;
+    S.result = kind;
+    S.phase = 'after'; S.phaseT = 0;
+    const t = tally[S.shot ? S.shot.kind : 'plain'];
+    if (kind === 'win') t.win++;
+    if (kind === 'ret') t.ret++;
+    hud.result(kind, big, small);
+    hud.tally();
+    if (kind === 'win') sfx.win(); else sfx.miss();
+  }
+  function winnerNote() {
+    const sh = S.shot;
+    const fooled = rivals.filter((r) => r.fooled);
+    if (sh.kind === 'mirage' && fooled.length) return `${fooled.map((r) => r.name).join(' and ')} swung at a fake`;
+    if (sh.kind === 'cosmo') return 'Knocked back, they could not recover in time';
+    if (sh.kind === 'frost' && sh.victim) return `${sh.victim.name} was frozen for ${FROST.freeze} s and could not reach it`;
+    const c = rivals.reduce((a, r) => (r.closest < a.closest ? r : a));
+    if (c.closest > 8) return 'Nobody got close';
+    return `${c.name} missed it by ${c.closest.toFixed(1)} ft`;
+  }
+  function onBallEvent(ev) {
+    if (ev === 'bounce' || ev === 'roll') fx.bounce(ball.pos);
+    if (ev === 'bounce' && ball.bounces === 1) sfx.bounce();
+    if (S.phase === 'feed') {
+      if (ball.bounces >= 2) { S.shot = null; finish('miss', 'Missed the feed', 'Too tired to reach it'); }
+      return;
+    }
+    if (S.phase !== 'out' || S.result) return;
+    if (S.pending) {
+      if (ev === 'net') finish('win', 'Into the net', `${S.pending.name}'s return hit the net`);
+      else if (ev === 'bounce' && ball.pos.z > 0) {
+        const wide = Math.abs(ball.pos.x) - COURT.halfW, long = ball.pos.z - COURT.halfL;
+        if (wide > 0.05 || long > 0.05) finish('win', 'Mis-hit!', `${S.pending.name} hit it ${long > wide ? 'long' : 'wide'} in the gas`);
+        else finish('ret', 'Returned', S.pendingWhy === 'glass' ? `${S.pending.name} got it past the Firewall as it dropped` : `${S.pending.name} got it back`);
+      }
+      return;
+    }
+    if (ev === 'net') { finish('lose', 'Into the net', 'The shot did not clear'); return; }
+    if (ev === 'bounce' && ball.bounces === 1) {
+      const wide = Math.abs(ball.pos.x) - COURT.halfW, long = -ball.pos.z - COURT.halfL;
+      if (wide > 0.05 || long > 0.05 || ball.pos.z > 0) {
+        finish('lose', 'Out', `Landed ${Math.max(wide, long).toFixed(1)} ft ${wide > long ? 'wide' : 'long'}`);
+        return;
+      }
+      if (ball.frost) fx.frostBurst(ball.pos);
+      if (ball.kind === 'quake' && !S.shot.revealed) {
+        S.shot.revealed = true;
+        S.shake = 0.4;
+        fx.quakeBurst(ball.pos);
+        sfx.crack();
+        rivals.forEach((r) => { r.delay = Math.max(r.delay, 0.15); say(r, 'WHOA', 0.8); });
+        replanRivals();
+      }
+    }
+    if (ball.bounces >= 2) finish('win', 'Winner!', winnerNote());
+  }
+
+  /* ---------------- update ---------------- */
+  function update(dt) {
+    S.time += dt;
+    S.phaseT += dt;
+    if (S.warpT > 0) S.warpT = Math.max(0, S.warpT - dt);
+    if (S.windT > 0) S.windT = Math.max(0, S.windT - dt);
+    if (S.glassT > 0) S.glassT = Math.max(0, S.glassT - dt);
+    if (S.gasT > 0) S.gasT = Math.max(0, S.gasT - dt);
+    if (S.tideT > 0) S.tideT = Math.max(0, S.tideT - dt);
+    if (S.cosmo) {
+      const c = S.cosmo;
+      c.t += dt;
+      if (c.t < COSMO.windup) {
+        // Spins up around you first, then flies off flat like a frisbee.
+        c.x0 = you.pos.x; c.z0 = you.pos.z; c.z = c.z0;
+      } else c.z = c.z0 - COSMO.speed * (c.t - COSMO.windup);
+      rivals.forEach((r) => {
+        if (c.hit.has(r) || c.z > r.pos.z) return;
+        c.hit.add(r);
+        const fx = r.pos.x, fz = r.pos.z;
+        let tx = fx, tz = fz;
+        if (r === c.near) tz = -COURT.halfL;                                        // all the way back to the baseline
+        else tx = (Math.abs(fx) > 0.3 ? Math.sign(fx) : (r === rex ? -1 : 1)) * COURT.halfW;   // out to the sideline
+        r.knock = { fx, fz, tx, tz, t: 0 };
+        r.delay = Math.max(r.delay, COSMO.knock + 0.1);
+        r.stamina = Math.min(r.stamina, COSMO.fatigue);
+        say(r, 'KNOCKED BACK', 1.2);
+        fx_cosmoHit(r);
+      });
+      if (c.z < -AREA.halfL) S.cosmo = null;
+    }
+    if (S.holeT > 0) { S.holeT = Math.max(0, S.holeT - dt); if (!S.holeT) rivals.forEach((r) => { if (r.status === 'PULLED') say(r, '', 0); }); }
+    if (S.autoWind > 0) { S.autoWind -= dt; if (S.autoWind <= 0) arm(true); }
+    const bF = S.warpT > 0 ? WARP.ball : 1, rF = S.warpT > 0 ? WARP.rivals : 1;
+
+    updateYou(dt);
+    rivals.forEach((r) => updateRival(r, dt * rF));
+
+    if (S.phase === 'ready') {
+      const home = everyone.every((p) => Math.hypot(p.pos.x - p.home.x, p.pos.z - p.home.z) < 1);
+      if (S.phaseT > 0.9 && (home || S.phaseT > 2.4)) feed();
+    } else {
+      S.acc += dt * bF;
+      while (S.acc >= STEP) {
+        S.acc -= STEP;
+        S.ballT += STEP;
+        const crossed = ball.pos.z;
+        const ev = stepB(ball);
+        if (ev) onBallEvent(ev);
+        // A ball that bounces and then hits the fence is dead: nobody may play it.
+        if (ball.fenced && ball.bounces >= 1 && !S.result) {
+          if (S.phase === 'feed') { S.shot = null; finish('miss', 'Missed the feed', 'It bounced into the fence'); }
+          else if (S.phase === 'out' && !S.pending) finish('win', 'Winner!', 'It bounced into the fence');
+          else if (S.phase === 'out' && S.pending) finish('ret', 'Returned', `${S.pending.name}'s return bounced into the fence`);
+        }
+        fakes.forEach((f) => { if (f.alive) stepB(f); });
+        if (S.phase === 'feed' && canTake() && horiz(you, ball) < 2.6) yourHit();
+        if (S.phase === 'out' && !S.result && S.pending) {
+          // Glass Wall: a ball crossing toward you bounces straight back.
+          if (S.glassT > 0 && crossed < GLASS.z && ball.pos.z >= GLASS.z && Math.abs(ball.pos.x) < GLASS.halfW + BALL_R && ball.pos.y < GLASS.h) {
+            ball.pos.z = GLASS.z - 0.01;
+            ball.vel.z = -Math.abs(ball.vel.z) * 0.75;
+            ball.vel.x *= 0.85;
+            fx.glassHit(ball.pos);
+            sfx.glassHit();
+            S.shake = 0.25;
+            finish('win', 'Blocked!', `The Firewall sent ${S.pending.name}'s return back`);
+          }
+        } else if (S.phase === 'out' && !S.result) {
+          const sh = S.shot;
+          if (sh.crossAt == null && crossed >= 0 && ball.pos.z < 0) sh.crossAt = S.ballT;
+          if (!sh.revealed && ball.kind === 'curve' && sh.crossAt != null && S.ballT > sh.crossAt + 0.2) {
+            sh.revealed = true; replanRivals(); rivals.forEach((r) => say(r, 'READ IT', 0.8));
+          }
+          if (!sh.revealed && ball.kind === 'mirage' && S.ballT >= sh.revealAt) {
+            sh.revealed = true;
+            fakes.forEach((f) => { if (f.alive) fx.poof(f.pos); f.alive = false; });
+            sfx.fake();
+            replanRivals();
+          }
+          if (ball.kind !== 'curve' && ball.kind !== 'mirage' || sh.revealed) {
+            S.replanT -= STEP;
+            if (S.replanT <= 0) { S.replanT = 0.15; replanRivals(); }
+          }
+          for (const r of rivals) {
+            if (ball.pos.z < 0 && ball.pos.y < 6) r.closest = Math.min(r.closest, Math.max(0, horiz(r, ball) - RIVAL_REACH + 1.6));
+            const legal = ball.pos.z < -0.3 && ball.pos.y < 6 && ball.pos.y > 0.9 && ball.bounces <= 1 && !(ball.bounces === 0 && Math.abs(ball.pos.z) < COURT.kitchen);
+            if (r.frozen <= 0 && r.delay <= 0 && legal && horiz(r, ball) < RIVAL_REACH) { rivalReturn(r); break; }
+            if (!r.fooled && r.frozen <= 0 && !sh.revealed && ball.kind === 'mirage' && r.fake !== ball && r.fake.alive &&
+                r.fake.pos.y < 6 && horiz(r, r.fake) < RIVAL_REACH - 0.6) {
+              r.fooled = true; r.delay = 0.35; stroke(r, r.fake.pos.x, r.fake.pos.y); say(r, 'FAKE!', 1); sfx.fake();
+            }
+          }
+        }
+      }
+      if (S.phase === 'feed' && S.phaseT > 0.2 && Math.floor(S.phaseT * 5) !== Math.floor((S.phaseT - dt) * 5)) planYou();
+      if (S.phase === 'after' && S.phaseT > 1.9) resetRally();
+      if (S.phase === 'out' && S.phaseT > 6) finish('win', 'Winner!', winnerNote());
+    }
+    everyone.forEach((p) => animate(p, p.team === 'b' ? dt * rF : dt));
+    if (you.statusT > 0) { you.statusT -= dt; if (you.statusT <= 0) you.status = ''; }
+    crowd.update(S.time, S.result === 'win' && S.phaseT < 1.5 ? 1 : 0);
+  }
+
+  /* ---------------- sound ---------------- */
+  const sfx = (() => {
+    let ctx = null, noiseBuf = null;
+    function unlock() {
+      if (!ctx) {
+        try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+        noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        const d = noiseBuf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+    }
+    ['pointerdown', 'keydown', 'touchstart'].forEach((e) => window.addEventListener(e, unlock, { passive: true }));
+    const ok = () => ctx && lab.sound && ctx.state === 'running' && !window.__labSilent;
+    function env(g, t, gain, attack, dur) {
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    }
+    function noise(t, dur, gain, freq, q, type = 'bandpass', attack = 0.003) {
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+      const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+      const g = ctx.createGain(); env(g, t, gain, attack, dur);
+      src.connect(f).connect(g).connect(ctx.destination);
+      src.start(t); src.stop(t + dur + 0.05);
+      return f;
+    }
+    function tone(t, f0, f1, dur, gain, type = 'sine', attack = 0.004) {
+      const o = ctx.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+      const g = ctx.createGain(); env(g, t, gain, attack, dur);
+      o.connect(g).connect(ctx.destination);
+      o.start(t); o.stop(t + dur + 0.05);
+    }
+    return {
+      hit(kind, v) {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 0.06, 0.55 * v, 1900, 1.3);
+        tone(t, 640, 380, 0.07, 0.22 * v, 'triangle');
+        if (kind === 'comet') {
+          tone(t, 120, 40, 0.5, 0.6, 'sine');
+          noise(t + 0.02, 0.7, 0.35, 700, 0.7, 'lowpass', 0.05).frequency.exponentialRampToValueAtTime(3500, t + 0.6);
+        } else if (kind === 'curve') {
+          tone(t + 0.05, 300, 900, 0.5, 0.12, 'sawtooth', 0.08);
+          tone(t + 0.05, 305, 880, 0.5, 0.08, 'triangle', 0.08);
+        } else if (kind === 'mirage') {
+          [0, 0.06, 0.12].forEach((d, i) => tone(t + d, 1200 + i * 400, 1000 + i * 380, 0.35, 0.1, 'sine'));
+        }
+      },
+      bounce() { if (ok()) noise(ctx.currentTime, 0.04, 0.25, 900, 1); },
+      arm() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        tone(t, 180, 720, 0.45, 0.16, 'sawtooth', 0.03);
+        tone(t, 360, 1440, 0.45, 0.07, 'triangle', 0.03);
+      },
+      warp() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        tone(t, 1100, 110, 0.9, 0.2, 'sine', 0.02);
+        tone(t, 70, 55, 2.8, 0.18, 'sine', 0.3);
+      },
+      wind() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 0.8, 0.3, 400, 0.8, 'bandpass', 0.2).frequency.exponentialRampToValueAtTime(2600, t + 0.7);
+        [0, 0.1, 0.2].forEach((d, i) => tone(t + d, 440 * (1 + i * 0.25), 880 * (1 + i * 0.25), 0.3, 0.09, 'triangle'));
+      },
+      frost() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        [1760, 2350, 2960, 3520].forEach((f, i) => tone(t + i * 0.05, f, f * 0.98, 0.5, 0.06, 'sine', 0.002));
+      },
+      tide() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 1.6, 0.45, 300, 0.6, 'lowpass', 0.5).frequency.exponentialRampToValueAtTime(1200, t + 1.2);
+        [0.3, 0.45, 0.62, 0.8].forEach((d, i) => tone(t + d, 500 + i * 120, 900 + i * 160, 0.08, 0.09, 'sine', 0.005));
+      },
+      splash() {
+        if (!ok()) return;
+        noise(ctx.currentTime, 0.18, 0.18, 1800, 0.8);
+      },
+      cosmo() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        // The shout, with a bright chord and a rushing whoosh behind it.
+        [523, 659, 784, 1047].forEach((f, i) => tone(t + 0.05 + i * 0.04, f, f, 1.1, 0.07, 'triangle', 0.08));
+        noise(t + 0.1, 0.8, 0.4, 600, 0.7, 'bandpass', 0.1).frequency.exponentialRampToValueAtTime(3200, t + 0.8);
+      },
+      speak(text) {
+        if (!lab.sound || window.__labSilent) return;
+        try {
+          if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
+            const u = new SpeechSynthesisUtterance(text);
+            u.rate = 1.05; u.pitch = 1.15; u.volume = 1;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(u);
+          }
+        } catch (e) { /* no speech voice: the tag still shows */ }
+      },
+      cosmoHit() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 0.15, 0.5, 900, 1);
+        tone(t, 160, 60, 0.35, 0.35, 'sine');
+        tone(t, 1568, 1568, 0.5, 0.05, 'sine', 0.002);
+      },
+      gas() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 1.4, 0.35, 2600, 0.6, 'bandpass', 0.15).frequency.exponentialRampToValueAtTime(900, t + 1.3);
+        [0, 0.18, 0.33, 0.5].forEach((d, i) => tone(t + d, 300 + i * 70, 520 + i * 90, 0.12, 0.08, 'sine', 0.01));
+      },
+      hole() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        tone(t, 420, 38, 1.3, 0.35, 'sine', 0.03);
+        tone(t, 210, 30, 1.3, 0.12, 'sawtooth', 0.05);
+        noise(t, 2.2, 0.35, 160, 0.7, 'lowpass', 0.3);
+      },
+      glass() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 1.2, 0.55, 300, 0.6, 'lowpass', 0.15).frequency.exponentialRampToValueAtTime(2200, t + 0.5);
+        tone(t, 70, 45, 1.0, 0.3, 'sine', 0.1);
+        for (let i = 0; i < 8; i++) noise(t + 0.2 + Math.random() * 0.9, 0.03, 0.18, 3000 + Math.random() * 2000, 2);
+      },
+      glassHit() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 0.5, 0.6, 900, 0.7, 'bandpass', 0.01).frequency.exponentialRampToValueAtTime(300, t + 0.45);
+        tone(t, 120, 50, 0.3, 0.3, 'sine');
+        for (let i = 0; i < 6; i++) noise(t + Math.random() * 0.4, 0.03, 0.22, 3500 + Math.random() * 2500, 2);
+      },
+      rumble() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 1.0, 0.6, 140, 0.7, 'lowpass', 0.05);
+        tone(t, 55, 35, 1.0, 0.45, 'sine', 0.05);
+      },
+      crack() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 0.12, 0.6, 1400, 0.9);
+        noise(t + 0.02, 0.5, 0.5, 220, 0.8, 'lowpass');
+        tone(t, 90, 40, 0.4, 0.4, 'sine');
+      },
+      shimmer() {},
+
+      fake() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        noise(t, 0.12, 0.2, 3000, 2);
+        tone(t, 900, 300, 0.15, 0.08, 'square');
+      },
+      win() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        [523, 659, 784].forEach((f, i) => tone(t + i * 0.08, f, f, 0.25, 0.08, 'triangle'));
+      },
+      miss() {
+        if (!ok()) return;
+        const t = ctx.currentTime;
+        tone(t, 330, 220, 0.3, 0.07, 'triangle');
+      },
+    };
+  })();
+
+  /* ---------------- effects ---------------- */
+  const fx = (() => {
+    const LOOK = {
+      plain:  { color: 0xdcf54a, emis: 0x4a5a00, glow: 0.35, scale: 1.5, trail: [0xdcf54a, 0xdcf54a] },
+      tide:   { color: 0xdcf54a, emis: 0x1a6aa0, glow: 0.5,  scale: 1.5, trail: [0xbfe9ff, 0x2fb4ff] },
+      cosmo:  { color: 0xfff0a0, emis: 0xb07a00, glow: 0.6,  scale: 1.5, trail: [0xfff2b0, 0xffc23d] },
+      gas:    { color: 0xdcf54a, emis: 0x6a1f80, glow: 0.5,  scale: 1.5, trail: [0xe2b8f2, 0xb44dd6] },
+      hole:   { color: 0xdcf54a, emis: 0x5a2aa0, glow: 0.5,  scale: 1.5, trail: [0xd9c4ff, 0xa06bff] },
+      glass:  { color: 0xdcf54a, emis: 0x9a3a00, glow: 0.5,  scale: 1.5, trail: [0xffd27a, 0xff6a1f] },
+      warp:   { color: 0xdcf54a, emis: 0x1f8a80, glow: 0.6,  scale: 1.5, trail: [0x9ff5ec, 0x4fd1c5] },
+      wind:   { color: 0xdcf54a, emis: 0x4a5a00, glow: 0.35, scale: 1.5, trail: [0xc8f7a8, 0x7be05a] },
+      comet:  { color: 0xffb347, emis: 0xff4a00, glow: 1.2,  scale: 1.9, trail: [0xffd166, 0xff4a14] },
+      curve:  { color: 0xe0b0ff, emis: 0x8a1fe0, glow: 1.0,  scale: 1.7, trail: [0xe8c4ff, 0xa040ff] },
+      quake:  { color: 0xffd9a0, emis: 0x7a3d0a, glow: 0.8,  scale: 1.7, trail: [0xf0c08a, 0x9a5a2b] },
+      frost:  { color: 0xe6fbff, emis: 0x2fb6e6, glow: 0.9,  scale: 1.7, trail: [0xffffff, 0x7fe3ff] },
+      mirage: { color: 0xffb0dc, emis: 0xd1157a, glow: 1.0,  scale: 1.7, trail: [0xffd0ea, 0xff5fb0] },
+    };
+    const additive = (color, opacity, extra = {}) => new THREE.MeshBasicMaterial(Object.assign({
+      color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    }, extra));
+    const flatRing = (r1, r2, color, opacity, add) => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(r1, r2, 48),
+        add ? additive(color, opacity) : new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2;
+      m.renderOrder = 2;
+      scene.add(m);
+      return m;
+    };
+    const ballGeo = new THREE.SphereGeometry(BALL_R, 20, 14);
+    const trailGeo = new THREE.SphereGeometry(BALL_R * 1.2, 10, 8);
+    function ballVis(n) {
+      const mesh = new THREE.Mesh(ballGeo, new THREE.MeshStandardMaterial({ color: 0xdcf54a, emissive: 0x4a5a00, emissiveIntensity: 0.35, roughness: 0.55, transparent: true }));
+      mesh.castShadow = true;
+      scene.add(mesh);
+      const shadow = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.8, 20),
+        new THREE.MeshBasicMaterial({ color: 0x0b1020, transparent: true, opacity: 0.45, depthWrite: false }));
+      shadow.rotation.x = -Math.PI / 2; shadow.renderOrder = 3; scene.add(shadow);
+      const trail = [];
+      for (let i = 0; i < n; i++) {
+        const m = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.34 * (1 - i / n), depthWrite: false }));
+        m.visible = false; scene.add(m); trail.push(m);
+      }
+      const history = [];
+      return {
+        mesh,
+        set(b, look, show, alpha = 1) {
+          mesh.visible = shadow.visible = show;
+          if (!show) { trail.forEach((m) => { m.visible = false; }); history.length = 0; return; }
+          mesh.position.copy(b.pos);
+          mesh.material.color.setHex(look.color);
+          mesh.material.emissive.setHex(look.emis);
+          mesh.material.emissiveIntensity = look.glow;
+          mesh.material.opacity = alpha;
+          mesh.scale.setScalar(look.scale);
+          shadow.position.set(b.pos.x, 0.03, b.pos.z);
+          const h = Math.max(0, b.pos.y - BALL_R);
+          shadow.scale.setScalar(1 + h * 0.08);
+          shadow.material.opacity = Math.max(0.12, 0.45 - h * 0.03) * alpha;
+          history.unshift(b.pos.clone());
+          if (history.length > n * 2) history.pop();
+          const moving = b.vel.lengthSq() > 25;
+          trail.forEach((m, i) => {
+            const hp = history[(i + 1) * 2];
+            m.visible = moving && !!hp;
+            if (hp) m.position.copy(hp);
+            m.material.color.setHex(i < n / 3 ? look.trail[0] : look.trail[1]);
+            m.material.opacity = 0.34 * (1 - i / n) * alpha * (look === LOOK.plain ? 1 : 1.6);
+            m.scale.setScalar((1 - i / (n + 2)) * look.scale / 1.5 * (look === LOOK.plain ? 1 : 1.25));
+          });
+        },
+      };
+    }
+    const main = ballVis(12);
+    const fakeVis = fakes.map(() => ballVis(9));
+
+    // Flaky: a spinning ring around the ball.
+    const swirl = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.06, 8, 32), additive(0xc45cff, 0.9));
+    scene.add(swirl);
+
+    // Aura around you while a shot ultimate is armed or a boost is running.
+    const auraTex = (() => {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 64;
+      const g = c.getContext('2d'); const grad = g.createLinearGradient(0, 0, 0, 64);
+      grad.addColorStop(0, 'rgba(255,255,255,0)'); grad.addColorStop(0.6, 'rgba(255,255,255,0.45)'); grad.addColorStop(1, 'rgba(255,255,255,1)');
+      g.fillStyle = grad; g.fillRect(0, 0, 4, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    const aura = new THREE.Group();
+    const auraRing = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.6, 40), additive(0xff7a1a, 0.85));
+    auraRing.rotation.x = -Math.PI / 2; auraRing.position.y = 0.05;
+    const auraCol = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.5, 6.5, 32, 1, true), additive(0xff5a14, 0.5, { map: auraTex }));
+    aura.add(auraRing, auraCol);
+    aura.visible = false;
+    scene.add(aura);
+
+    // Time Warp: a clock face that sweeps round under you.
+    const clockFace = new THREE.Group();
+    const clockRim = new THREE.Mesh(new THREE.RingGeometry(2.1, 2.3, 64), additive(0x4fd1c5, 0.8));
+    const hand = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 2.0), additive(0x9ff5ec, 0.9));
+    hand.position.y = 1.0;
+    const handPivot = new THREE.Group(); handPivot.add(hand);
+    clockFace.add(clockRim, handPivot);
+    for (let i = 0; i < 12; i++) {
+      const tick = new THREE.Mesh(new THREE.PlaneGeometry(0.1, i % 3 ? 0.25 : 0.45), additive(0x4fd1c5, 0.8));
+      const a = (i / 12) * Math.PI * 2;
+      tick.position.set(Math.sin(a) * 1.85, Math.cos(a) * 1.85, 0);
+      tick.rotation.z = -a;
+      clockFace.add(tick);
+    }
+    clockFace.rotation.x = -Math.PI / 2;
+    clockFace.visible = false;
+    scene.add(clockFace);
+
+    // Reborn: green sparks rising around you.
+    const sparks = [];
+    const sparkGeo = new THREE.SphereGeometry(0.09, 6, 4);
+    for (let i = 0; i < 18; i++) {
+      const m = new THREE.Mesh(sparkGeo, additive(0xb5ff8a, 0.9));
+      m.userData = { a: Math.random() * 6.28, r: 0.9 + Math.random() * 0.8, y: Math.random() * 6, s: 2 + Math.random() * 2.5 };
+      m.visible = false; scene.add(m); sparks.push(m);
+    }
+
+    // Frost: an ice block on a frozen rival, and a frost ring where the drop lands.
+    const ice = rivals.map(() => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.4, 3.2, 6), new THREE.MeshStandardMaterial({
+        color: 0xbff4ff, transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.1, emissive: 0x2fb6e6, emissiveIntensity: 0.35, depthWrite: false,
+      }));
+      m.visible = false; scene.add(m); return m;
+    });
+    const frostRing = flatRing(0.4, 1.1, 0x7fe3ff, 0, true);
+    let frostT = 9;
+
+    // Bounce pops and fake-ball poofs.
+    const pops = Array.from({ length: 4 }, () => ({ m: flatRing(0.3, 0.42, 0xffffff, 0), t: 9, y: 0.04 }));
+    let popI = 0;
+    function pop(p, color, y = 0.04) {
+      const e = pops[popI++ % pops.length];
+      e.m.position.set(p.x, y, p.z); e.m.material.color.setHex(color); e.t = 0; e.y = y;
+      if (y > 0.1) { e.m.rotation.set(0, 0, 0); e.m.lookAt(camera.position); } else e.m.rotation.set(-Math.PI / 2, 0, 0);
+    }
+
+    // Flight paths: the real one, and what the rivals believe (curve and mirage).
+    const pathMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+    const fakeMat = new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, dashSize: 0.7, gapSize: 0.5 });
+    const lines = [0, 1, 2].map((i) => {
+      const l = new THREE.Line(new THREE.BufferGeometry(), i ? fakeMat.clone() : pathMat);
+      l.visible = false; l.frustumCulled = false; scene.add(l); return l;
+    });
+    const marks = [0, 1, 2].map((i) => flatRing(0.45, 0.72, 0xffffff, i ? 0.55 : 0.9));
+    function setLine(i, pts, color, markEnd) {
+      const l = lines[i];
+      l.geometry.dispose();
+      l.geometry = new THREE.BufferGeometry().setFromPoints(pts.map((s) => new THREE.Vector3(s.x, s.y, s.z)));
+      if (i) l.computeLineDistances();
+      l.material.color.setHex(color);
+      l.visible = lab.paths;
+      const L = markEnd ? pts[pts.length - 1] : firstBounce(pts);
+      marks[i].position.set(L.x, 0.05, L.z);
+      marks[i].material.color.setHex(color);
+      marks[i].visible = lab.paths;
+    }
+    const upToBounce = (smp) => { const i = smp.findIndex((s) => s.b >= 1); return smp.slice(0, i < 0 ? smp.length : i + 1); };
+
+    // Firewall: layered sheets of flame over the middle of the net, on your side,
+    // with a white-hot base, a fiery frame and embers drifting up.
+    const flameTex = (() => {
+      const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+      const g = c.getContext('2d');
+      // Flame tongues: tall soft teardrops, hot at the bottom and fading up.
+      for (let i = 0; i < 18; i++) {
+        const x = Math.random() * 128, w = 10 + Math.random() * 22, h = 90 + Math.random() * 160;
+        const grad = g.createLinearGradient(0, 256, 0, 256 - h);
+        grad.addColorStop(0, 'rgba(255,210,70,0.9)');
+        grad.addColorStop(0.25, 'rgba(255,120,20,0.8)');
+        grad.addColorStop(0.6, 'rgba(220,40,0,0.55)');
+        grad.addColorStop(1, 'rgba(150,10,0,0)');
+        g.fillStyle = grad;
+        for (const dx of [-128, 0, 128]) {   // drawn three times so it tiles sideways
+          g.beginPath();
+          g.moveTo(x + dx - w, 256);
+          g.quadraticCurveTo(x + dx - w * 0.9, 256 - h * 0.45, x + dx + (Math.random() - 0.5) * 8, 256 - h);
+          g.quadraticCurveTo(x + dx + w * 0.9, 256 - h * 0.45, x + dx + w, 256);
+          g.fill();
+        }
+      }
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = THREE.RepeatWrapping;
+      return t;
+    })();
+    const wall = new THREE.Group();
+    const flameMat = (repeat, opacity) => {
+      const map = flameTex.clone(); map.needsUpdate = true; map.repeat.set(repeat, 1);
+      return new THREE.MeshBasicMaterial({ map, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
+    };
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(GLASS.halfW * 2, GLASS.h), flameMat(2, 0.9));
+    pane.position.y = GLASS.h / 2;
+    pane.renderOrder = 4;
+    const flames2 = new THREE.Mesh(new THREE.PlaneGeometry(GLASS.halfW * 2, GLASS.h * 0.8), flameMat(3, 0.75));
+    flames2.position.set(0, GLASS.h * 0.4, 0.15);
+    flames2.renderOrder = 5;
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(GLASS.halfW * 2 + 1.2, GLASS.h + 1), new THREE.MeshBasicMaterial({ color: 0xff3a00, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide }));
+    glow.position.set(0, GLASS.h / 2, -0.1);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(GLASS.halfW * 2, 0.3, 0.4), additive(0xff8a20, 0.7));
+    base.position.y = 0.18;
+    const glint = new THREE.Group();   // unused by the fire look; kept so the update code stays simple
+    const frameMat = additive(0xff6a1f, 0.9);
+    wall.add(glow, pane, flames2, base);
+    for (const s of [-1, 1]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.16, GLASS.h, 0.16), frameMat);
+      side.position.set(s * GLASS.halfW, GLASS.h / 2, 0);
+      wall.add(side);
+    }
+    const embers = Array.from({ length: 28 }, () => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 4), additive(Math.random() < 0.5 ? 0xffc04a : 0xff5a1a, 0.95));
+      m.userData = { x: (Math.random() - 0.5) * GLASS.halfW * 2, y: Math.random() * GLASS.h * 1.2, s: 2 + Math.random() * 3, ph: Math.random() * 6.28 };
+      wall.add(m);
+      return m;
+    });
+    wall.position.z = GLASS.z;
+    wall.visible = false;
+    scene.add(wall);
+    const ripples = Array.from({ length: 2 }, () => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.6, 40), additive(0xffb040, 0));
+      m.position.z = GLASS.z + 0.02; scene.add(m);
+      return { m, t: 9 };
+    });
+    let rippleI = 0, glassFlash = 0;
+
+    // Earthquake: a jagged crack decal on the court, and chunks of court kicked up.
+    const crackCanvas = document.createElement('canvas');
+    crackCanvas.width = crackCanvas.height = 256;
+    const crackTex = new THREE.CanvasTexture(crackCanvas);
+    function drawCrack() {
+      const g = crackCanvas.getContext('2d');
+      g.clearRect(0, 0, 256, 256);
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      const branch = (x, y, a, len, w, depth) => {
+        const pts = [[x, y]];
+        for (let i = 0; i < 6; i++) {
+          a += (Math.random() - 0.5) * 0.9;
+          x += Math.cos(a) * len / 6; y += Math.sin(a) * len / 6;
+          pts.push([x, y]);
+        }
+        for (const [col, extra] of [['rgba(255,190,120,0.55)', 3], ['#1b120c', 0]]) {
+          g.strokeStyle = col; g.lineWidth = w + extra;
+          g.beginPath(); pts.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py))); g.stroke();
+        }
+        if (depth > 0) for (let k = 0; k < 2; k++) {
+          const [bx, by] = pts[2 + Math.floor(Math.random() * 4)];
+          branch(bx, by, a + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.7), len * 0.55, w * 0.6, depth - 1);
+        }
+      };
+      const n = 5;
+      for (let i = 0; i < n; i++) branch(128, 128, (i / n) * Math.PI * 2 + Math.random() * 0.6, 95 + Math.random() * 25, 5, 2);
+      g.fillStyle = '#1b120c'; g.beginPath(); g.arc(128, 128, 9, 0, Math.PI * 2); g.fill();
+      crackTex.needsUpdate = true;
+    }
+    const crackDecal = new THREE.Mesh(new THREE.PlaneGeometry(11, 11),
+      new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, depthWrite: false }));
+    crackDecal.rotation.x = -Math.PI / 2;
+    crackDecal.renderOrder = 1;
+    crackDecal.visible = false;
+    scene.add(crackDecal);
+    let crackT = 99;
+    const chunks = Array.from({ length: 12 }, (_, i) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.22), stdMat(i % 3 ? 0x2a56c6 : 0x8a6a4a, 0.9));
+      m.visible = false; scene.add(m);
+      return { m, v: new THREE.Vector3(), spin: new THREE.Vector3() };
+    });
+    const dust = flatRing(0.4, 1.4, 0xd9b38a, 0, false);
+    let dustT = 9;
+
+    // High Tide: water over the rival court, with two small fish swimming and jumping.
+    const waterTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d');
+      g.fillStyle = 'rgba(40,150,230,0.55)'; g.fillRect(0, 0, 128, 128);
+      g.strokeStyle = 'rgba(220,245,255,0.55)'; g.lineWidth = 2;
+      for (let y = 8; y < 128; y += 16) {
+        g.beginPath();
+        for (let x = 0; x <= 128; x += 4) g.lineTo(x, y + Math.sin((x / 128) * Math.PI * 4 + y) * 3);
+        g.stroke();
+      }
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(4, 4);
+      return t;
+    })();
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(COURT.halfW * 2 + 1, COURT.halfL + 0.5),
+      new THREE.MeshBasicMaterial({ map: waterTex, transparent: true, opacity: 0, depthWrite: false }));
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(0, 0.04, -COURT.halfL / 2 - 0.25);
+    water.renderOrder = 1;
+    water.visible = false;
+    scene.add(water);
+    function makeFish(color) {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.1 });
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 10), mat);
+      body.scale.set(1, 0.55, 0.38);
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.45, 4), mat);
+      tail.rotation.z = Math.PI / 2; tail.position.x = -0.58; tail.scale.z = 0.4;
+      const fin = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 4), mat);
+      fin.position.set(0, 0.3, 0); fin.scale.z = 0.4;
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+      for (const s of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), eyeMat);
+        eye.position.set(0.3, 0.07, s * 0.16);
+        g.add(eye);
+      }
+      g.add(body, tail, fin);
+      g.userData = { tail };
+      g.visible = false;
+      scene.add(g);
+      return g;
+    }
+    const fish = [
+      { m: makeFish(0xff8a3d), cx: -5, cz: -8, r: 2.6, sp: 1.3, ph: 0, jumpEvery: 2.3 },
+      { m: makeFish(0x2ec4b6), cx: 5, cz: -15, r: 3.0, sp: -1.1, ph: 2, jumpEvery: 2.9 },
+    ];
+
+    // Cosmo: a giant spinning golden ring with a glow, and sparks left in its wake.
+    const cosmoRing = new THREE.Group();
+    const goldRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.07, 12, 72),
+      new THREE.MeshStandardMaterial({ color: 0xffc23d, emissive: 0xffa000, emissiveIntensity: 1.1, metalness: 0.6, roughness: 0.25 }));
+    const glowRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.16, 8, 72), additive(0xffe08a, 0.55));
+    const innerRing = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 72), additive(0xfff3c0, 0.25));
+    cosmoRing.add(goldRing, glowRing, innerRing);
+    cosmoRing.visible = false;
+    scene.add(cosmoRing);
+    const goldSparks = Array.from({ length: 40 }, () => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 4), additive(0xffd76a, 0.9));
+      m.visible = false; m.userData = { life: 0, v: new THREE.Vector3() }; scene.add(m);
+      return m;
+    });
+    let sparkI = 0;
+    const goldBursts = Array.from({ length: 2 }, () => ({ m: flatRing(0.4, 0.7, 0xffc23d, 0, true), t: 9 }));
+    let burstI = 0;
+    fx_cosmoHit = (r) => {
+      const b = goldBursts[burstI++ % goldBursts.length];
+      b.m.position.set(r.pos.x, 0.06, r.pos.z); b.t = 0;
+      sfx.cosmoHit();
+    };
+
+    // Poison: soft purple puffs that hang around the gassed rival, and rising bubbles.
+    const puffTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d');
+      const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grad.addColorStop(0, 'rgba(255,255,255,0.95)'); grad.addColorStop(0.5, 'rgba(255,255,255,0.45)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    // One cloud per rival.
+    const clouds = rivals.map(() => {
+    const gasCloud = new THREE.Group();
+    const puffs = Array.from({ length: 18 }, (_, i) => {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: [0x9b3fd0, 0xb86be0, 0x7a2aa8, 0xa8d06a][i % 4 === 3 && i > 10 ? 3 : i % 3], transparent: true, opacity: 0.55, depthWrite: false }));
+      s.userData = { a: Math.random() * 6.28, r: 0.6 + Math.random() * 1.4, y: 0.6 + Math.random() * 5, size: 2.8 + Math.random() * 2.2, sp: 0.4 + Math.random() * 0.8, ph: Math.random() * 6.28 };
+      gasCloud.add(s);
+      return s;
+    });
+    const bubbles = Array.from({ length: 10 }, () => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), additive(0xd58cff, 0.8));
+      m.userData = { a: Math.random() * 6.28, r: Math.random() * 1.6, y: Math.random() * 6, s: 1 + Math.random() * 1.5 };
+      gasCloud.add(m);
+      return m;
+    });
+    gasCloud.visible = false;
+    scene.add(gasCloud);
+    return { gasCloud, puffs, bubbles };
+    });
+
+    // Black Hole: a dark core, a spinning disk of light, a ground swirl and dust falling in.
+    const hole = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.SphereGeometry(1.05, 32, 20), new THREE.MeshBasicMaterial({ color: 0x050208 }));
+    core.position.y = HOLE.y;
+    const disks = [[1.35, 2.9, 0xb27bff, 0.75], [1.2, 2.2, 0xffb36b, 0.6]].map(([a, b, col, op]) => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(a, b, 64, 1), additive(col, op));
+      m.position.y = HOLE.y;
+      return m;
+    });
+    const halo = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.55, 64), additive(0xe7d6ff, 0.8));
+    halo.position.y = HOLE.y;
+    const holeSwirl = new THREE.Mesh(new THREE.RingGeometry(0.8, 4.5, 48, 1, 0, Math.PI * 1.6), additive(0x7a3dff, 0.35));
+    holeSwirl.rotation.x = -Math.PI / 2; holeSwirl.position.y = 0.06;
+    const pit = new THREE.Mesh(new THREE.CircleGeometry(1.6, 40), new THREE.MeshBasicMaterial({ color: 0x0b0614, transparent: true, opacity: 0.55, depthWrite: false }));
+    pit.rotation.x = -Math.PI / 2; pit.position.y = 0.05;
+    hole.add(core, ...disks, halo, holeSwirl, pit);
+    const motes = Array.from({ length: 36 }, () => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 4), additive(Math.random() < 0.5 ? 0xd9c4ff : 0xffc98f, 0.9));
+      m.userData = { a: Math.random() * 6.28, r: 1.5 + Math.random() * 4, y: 0.4 + Math.random() * 11, s: 0.8 + Math.random() };
+      hole.add(m);
+      return m;
+    });
+    hole.visible = false;
+    scene.add(hole);
+
+    let shake = 0;
+    return {
+      clearPaths() { lines.forEach((l) => { l.visible = false; }); marks.forEach((m) => { m.visible = false; }); },
+      drawPaths(kind, smp, shot) {
+        this.clearPaths();
+        const u = UL[kind];
+        setLine(0, upToBounce(smp), u ? u.hex : 0xdcf54a);
+        if (kind === 'curve') setLine(1, upToBounce(simulate({ pos: ball.pos, vel: ball.vel, netted: false, bounces: 0, age: 0, frost: false }, 3, 0)), 0xffffff);
+        if (kind === 'quake') {
+          // Real path through the kick, and the normal bounce the rivals expect.
+          const to2 = (p) => { const i = p.findIndex((s) => s.b >= 2); return p.slice(0, i < 0 ? p.length : i + 1); };
+          setLine(0, to2(smp), u.hex);
+          setLine(1, to2(simulate(ball, 3.2, 0, false)), 0xffffff, true);
+        }
+        if (kind === 'mirage') fakes.forEach((f, i) => setLine(i + 1, upToBounce(simulate(f, 3)), 0xffb0dc));
+      },
+      showPaths(on) {
+        lines.forEach((l, i) => { if (l.geometry.attributes.position) l.visible = on && (S.phase === 'out' || S.phase === 'after'); });
+        marks.forEach((m, i) => { m.visible = lines[i].visible; });
+      },
+      bounce(p) { pop(p, 0xffffff); },
+      poof(p) { pop(p, 0xff5fb0, p.y); },
+      glassHit(p) {
+        const r = ripples[rippleI++ % ripples.length];
+        r.m.position.set(p.x, p.y, GLASS.z + 0.02); r.t = 0; glassFlash = 1;
+      },
+      crack(p) {
+        drawCrack();
+        crackDecal.position.set(p.x, 0.022, p.z);
+        crackDecal.rotation.z = Math.random() * Math.PI * 2;
+        crackT = 0;
+      },
+      quakeBurst(p) {
+        chunks.forEach((c) => {
+          c.m.position.set(p.x + rand(-0.6, 0.6), 0.1, p.z + rand(-0.6, 0.6));
+          c.v.set(rand(-5, 5), rand(6, 12), rand(-5, 5));
+          c.spin.set(rand(-9, 9), rand(-9, 9), rand(-9, 9));
+          c.m.visible = true;
+        });
+        dust.position.set(p.x, 0.05, p.z); dustT = 0;
+      },
+      frostBurst(p) { frostRing.position.set(p.x, 0.06, p.z); frostT = 0; },
+      update(dt, time) {
+        // Ball held by Rex before the feed.
+        if (ball.held) ball.pos.set(rex.pos.x - 1.1, 2.4 + Math.sin(time * 3) * 0.08, rex.pos.z + 1.2);
+        const kind = ball.kind || 'plain';
+        const look = LOOK[kind] || LOOK.plain;
+        main.set(ball, look, true);
+        fakes.forEach((f, i) => {
+          if (!f.alive && f.fade > 0) f.fade = Math.max(0, f.fade - dt * 6);
+          fakeVis[i].set(f, LOOK.mirage, f.alive || f.fade > 0, f.alive ? 1 : f.fade);
+        });
+        swirl.visible = kind === 'curve' && ball.live && ball.bounces === 0 && S.phase === 'out';
+        if (swirl.visible) {
+          swirl.position.copy(ball.pos);
+          swirl.rotation.set(time * 9, time * 13, 0);
+        }
+
+        const u = UL[lab.ult];
+        const boosting = (S.warpT > 0 && u.id === 'warp') || (S.windT > 0);
+        const shouting = false;   // Cosmo's glow is the ring itself, around you
+        aura.visible = S.armed || (S.windT > 0) || shouting;
+        if (aura.visible) {
+          const col = S.armed ? u.hex : shouting ? 0xffc23d : 0x7be05a;
+          auraRing.material.color.setHex(col);
+          auraCol.material.color.setHex(col);
+          const f = 0.8 + Math.sin(time * 17) * 0.12 + Math.sin(time * 6.3) * 0.08;
+          aura.position.set(you.pos.x, 0, you.pos.z);
+          auraCol.scale.set(1, f, 1);
+          auraCol.position.y = 3.25 * f;
+          auraCol.rotation.y = time * 2;
+          auraCol.material.opacity = 0.42 + Math.sin(time * 23) * 0.1;
+          auraRing.scale.setScalar(1 + Math.sin(time * 10) * 0.08);
+        }
+        clockFace.visible = S.warpT > 0;
+        if (clockFace.visible) {
+          clockFace.position.set(you.pos.x, 0.07, you.pos.z);
+          handPivot.rotation.z = -(1 - S.warpT / WARP.time) * Math.PI * 2;
+          clockFace.scale.setScalar(1 + Math.min(1, (WARP.time - S.warpT) * 4) * 0.15);
+        }
+        sparks.forEach((m) => {
+          m.visible = S.windT > 0;
+          if (!m.visible) return;
+          const d = m.userData;
+          d.y += d.s * dt; if (d.y > 6.5) d.y = 0;
+          m.position.set(you.pos.x + Math.cos(d.a + time * 2) * d.r, d.y, you.pos.z + Math.sin(d.a + time * 2) * d.r);
+          m.material.opacity = 0.9 * (1 - d.y / 6.5);
+        });
+        rivals.forEach((r, i) => {
+          ice[i].visible = r.frozen > 0;
+          if (ice[i].visible) { ice[i].position.set(r.pos.x, 1.6, r.pos.z); ice[i].rotation.y = time * 0.3; }
+        });
+        frostT += dt;
+        const fk = Math.min(1, frostT / 0.6);
+        frostRing.scale.setScalar(1 + fk * 3);
+        frostRing.material.opacity = (1 - fk) * 0.9;
+        pops.forEach((e) => {
+          e.t += dt;
+          const k = Math.min(1, e.t / 0.35);
+          e.m.scale.setScalar(1 + k * 2.4);
+          e.m.material.opacity = (1 - k) * 0.8;
+        });
+        // Glass rises over 0.3 s, flickers in its last half second, then drops.
+        wall.visible = S.glassT > 0;
+        if (wall.visible) {
+          const up = Math.min(1, (GLASS.time - S.glassT) / 0.3);
+          wall.scale.y = 1 - Math.pow(1 - up, 3);
+          const ending = S.glassT < 0.5 ? (Math.sin(time * 40) > 0 ? 0.35 : 1) : 1;
+          glassFlash = Math.max(0, glassFlash - dt * 3);
+          // Flames scroll sideways and flicker in height; a block makes them flare.
+          const flick = 1 + Math.sin(time * 13) * 0.06 + Math.sin(time * 29) * 0.04;
+          pane.material.map.offset.x = time * 0.35;
+          flames2.material.map.offset.x = -time * 0.55;
+          pane.scale.y = flick; pane.position.y = GLASS.h / 2 * flick;
+          flames2.scale.y = 2 - flick; flames2.position.y = GLASS.h * 0.4 * (2 - flick);
+          pane.material.opacity = Math.min(1, 0.85 + glassFlash * 0.15) * ending;
+          flames2.material.opacity = (0.7 + glassFlash * 0.2) * ending;
+          glow.material.opacity = (0.08 + glassFlash * 0.2 + Math.sin(time * 17) * 0.02) * ending;
+          base.material.opacity = (0.6 + Math.sin(time * 23) * 0.15) * ending;
+          frameMat.opacity = (0.75 + Math.sin(time * 6) * 0.15) * ending;
+          embers.forEach((m) => {
+            const d = m.userData;
+            d.y += d.s * dt; if (d.y > GLASS.h * 1.25) { d.y = 0.3; d.x = (Math.random() - 0.5) * GLASS.halfW * 2; }
+            m.position.set(d.x + Math.sin(time * 3 + d.ph) * 0.3, d.y, 0.25);
+            m.material.opacity = 0.95 * (1 - d.y / (GLASS.h * 1.25)) * ending;
+          });
+        }
+        ripples.forEach((r) => {
+          r.t += dt;
+          const k = Math.min(1, r.t / 0.5);
+          r.m.scale.setScalar(1 + k * 6);
+          r.m.material.opacity = (1 - k) * 0.9;
+        });
+        // Crack spreads out in 0.25 s, holds, then fades away.
+        crackT += dt;
+        crackDecal.visible = crackT < QUAKE.crack;
+        if (crackDecal.visible) {
+          crackDecal.scale.setScalar(0.25 + 0.75 * Math.min(1, crackT / 0.25));
+          crackDecal.material.opacity = crackT > QUAKE.crack - 0.8 ? (QUAKE.crack - crackT) / 0.8 : 1;
+        }
+        chunks.forEach((c) => {
+          if (!c.m.visible) return;
+          c.v.y -= G * dt;
+          c.m.position.addScaledVector(c.v, dt);
+          c.m.rotation.x += c.spin.x * dt; c.m.rotation.y += c.spin.y * dt; c.m.rotation.z += c.spin.z * dt;
+          if (c.m.position.y < 0.06) c.m.visible = false;
+        });
+        dustT += dt;
+        const dk = Math.min(1, dustT / 0.8);
+        dust.scale.setScalar(1 + dk * 2.5);
+        dust.material.opacity = (1 - dk) * 0.7;
+        // High Tide: water fades in and out; fish swim loops and jump now and then.
+        const wet = S.tideT > 0 ? Math.min(1, (TIDE.time - S.tideT) / 0.6, S.tideT / 0.6) : 0;
+        water.visible = fish[0].m.visible = fish[1].m.visible = wet > 0;
+        if (wet > 0) {
+          water.material.opacity = 0.75 * wet;
+          waterTex.offset.set(time * 0.05, time * 0.12);
+          fish.forEach((f) => {
+            const a = f.ph + time * f.sp;
+            const x = f.cx + Math.cos(a) * f.r, z = f.cz + Math.sin(a) * f.r;
+            const jt = (time + f.ph) % f.jumpEvery, jump = jt < 0.6 ? Math.sin((jt / 0.6) * Math.PI) : 0;
+            if (jt < 0.6 && jt + dt >= 0.6) { pop({ x, z }, 0xbfe9ff); sfx.splash(); }
+            f.m.position.set(x, 0.12 + jump * 1.6, z);
+            f.m.scale.setScalar(wet * 1.7);
+            // Face along the swim direction; nose up then down through a jump.
+            f.m.rotation.set(0, -(a + (f.sp > 0 ? Math.PI / 2 : -Math.PI / 2)), jt < 0.6 ? Math.cos((jt / 0.6) * Math.PI) * 0.8 : 0);
+            f.m.userData.tail.rotation.y = Math.sin(time * 14) * 0.5;
+          });
+        }
+        // Cosmo ring: grows as it flies so it reaches both rivals.
+        cosmoRing.visible = !!S.cosmo;
+        if (S.cosmo) {
+          const c = S.cosmo;
+          const span = Math.max(1, c.z0 - (-COURT.halfL));
+          const k = clamp((c.z0 - c.z) / span, 0, 1);
+          const grow = Math.min(1, c.t / 0.1);   // pops open around you
+          const R = (COSMO.startR + (COSMO.endR - COSMO.startR) * Math.sqrt(k)) * (0.4 + 0.6 * grow);
+          const cx = c.x0 + ((rex.pos.x + juno.pos.x) / 2 - c.x0) * Math.min(1, k * 1.5);
+          cosmoRing.position.set(cx, COSMO.y + Math.sin(time * 7) * 0.15 * k, c.z);
+          cosmoRing.scale.setScalar(R);
+          // Lies flat, spins fast, and wobbles a little like a thrown disc.
+          cosmoRing.rotation.set(-Math.PI / 2 + Math.sin(time * 6) * 0.07, 0, 0);
+          cosmoRing.rotation.y = Math.cos(time * 5) * 0.06;
+          goldRing.rotation.z = time * 14;
+          innerRing.material.opacity = 0.3;
+          for (let i = 0; i < 2; i++) {
+            const m = goldSparks[sparkI++ % goldSparks.length];
+            const a = Math.random() * Math.PI * 2;
+            m.position.set(cx + Math.cos(a) * R, cosmoRing.position.y, c.z + Math.sin(a) * R);
+            m.userData.life = 0.6; m.userData.v.set(rand(-1.5, 1.5), rand(-0.5, 1.5), rand(2, 6));
+            m.visible = true;
+          }
+        }
+        goldSparks.forEach((m) => {
+          if (!m.visible) return;
+          const d = m.userData;
+          d.life -= dt;
+          if (d.life <= 0) { m.visible = false; return; }
+          m.position.addScaledVector(d.v, dt);
+          m.material.opacity = 0.9 * (d.life / 0.6);
+        });
+        goldBursts.forEach((b) => {
+          b.t += dt;
+          const k = Math.min(1, b.t / 0.5);
+          b.m.scale.setScalar(1 + k * 5);
+          b.m.material.opacity = (1 - k) * 0.9;
+        });
+        // Gas fades in, drifts and churns around the rival, then thins out.
+        clouds.forEach(({ gasCloud, puffs, bubbles }, ci) => {
+        gasCloud.visible = S.gasT > 0;
+        if (gasCloud.visible) {
+          const age = GAS.time - S.gasT;
+          const k = Math.min(1, age / 0.4) * Math.min(1, S.gasT / 0.6);
+          gasCloud.position.set(rivals[ci].pos.x, 0, rivals[ci].pos.z);
+          puffs.forEach((s) => {
+            const d = s.userData;
+            const a = d.a + time * d.sp;
+            s.position.set(Math.cos(a) * d.r, d.y + Math.sin(time * 1.3 + d.ph) * 0.3, Math.sin(a) * d.r);
+            s.scale.setScalar(d.size * (0.6 + 0.4 * k) * (1 + Math.sin(time * 0.9 + d.ph) * 0.12));
+            s.material.opacity = 0.62 * k;
+          });
+          bubbles.forEach((m) => {
+            const d = m.userData;
+            d.y += d.s * dt; if (d.y > 6.5) { d.y = 0.3; d.a = Math.random() * 6.28; }
+            m.position.set(Math.cos(d.a) * d.r, d.y, Math.sin(d.a) * d.r);
+            m.material.opacity = 0.8 * k * (1 - d.y / 6.5);
+          });
+        }
+        });
+        // Black hole grows in, spins, and collapses in its last 0.3 s.
+        hole.visible = S.holeT > 0;
+        if (hole.visible) {
+          const age = HOLE.time - S.holeT;
+          const k = Math.min(1, age / 0.35) * Math.min(1, S.holeT / 0.3);
+          hole.scale.setScalar(Math.max(0.01, k));
+          hole.position.set(S.hole.x, 0, S.hole.z);
+          disks.forEach((d, i) => {
+            d.rotation.set(-Math.PI / 2 + 0.35, 0, time * (i ? -2.2 : 1.6));
+          });
+          halo.lookAt(camera.position);
+          halo.material.opacity = 0.6 + Math.sin(time * 9) * 0.2;
+          holeSwirl.rotation.z = time * 3;
+          motes.forEach((m) => {
+            const d = m.userData;
+            d.r -= d.s * 2.2 * dt; d.a += (2.5 / Math.max(0.6, d.r)) * dt * 2;
+            d.y += (HOLE.y - d.y) * dt * 1.5;
+            if (d.r < 1.1) { d.r = 3.5 + Math.random() * 2; d.y = 0.4 + Math.random() * 8; }
+            m.position.set(Math.cos(d.a) * d.r, d.y, Math.sin(d.a) * d.r);
+          });
+        }
+        this.showPaths(lab.paths);
+
+        document.body.classList.toggle('warping', S.warpT > 0);
+        void boosting;
+      },
+    };
+  })();
+
+  /* ---------------- camera ---------------- */
+  const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 600);
+  const camPos = new THREE.Vector3(0, 18, 40), camLook = new THREE.Vector3();
+  const wantPos = new THREE.Vector3(), wantLook = new THREE.Vector3();
+  let camSnap = true;
+  const fitFov = (halfDeg, aspect, min, max) =>
+    clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(halfDeg)) / aspect)), min, max);
+  function cameraGoal() {
+    const a = camera.aspect, tall = a < 1;
+    const hx = you.pos.x * 0.3;
+    if (lab.cam === 'side') {
+      wantPos.set(tall ? 46 : 33, tall ? 40 : 28, 1); wantLook.set(0, 1, 0);
+      camera.fov = tall ? fitFov(30, a, 50, 95) : 56;
+    } else if (lab.cam === 'top') {
+      wantPos.set(0, tall ? 60 : 58, tall ? 6 : 10); wantLook.set(0, 0, tall ? 0.5 : 1);
+      camera.fov = tall ? fitFov(22, a, 50, 95) : 52;
+    } else if (lab.cam === 'rival') {
+      wantPos.set(0, tall ? 24 : 15, tall ? -32 : -37); wantLook.set(0, 1, tall ? 4 : 1);
+      camera.fov = tall ? fitFov(27, a, 55, 96) : fitFov(33, a, 52, 70);
+    } else {
+      if (tall) { wantPos.set(hx, 26, 31); wantLook.set(hx * 0.8, 0, 2); camera.fov = fitFov(27, a, 55, 96); }
+      else { wantPos.set(hx, 16.5, 37); wantLook.set(hx * 0.8, 1, -1); camera.fov = fitFov(33, a, 52, 70); }
+    }
+    camera.updateProjectionMatrix();
+  }
+  // Keep the court centred in the space the panels leave free.
+  const labEl = document.getElementById('lab'), dockEl = document.getElementById('dock');
+  function viewOffset(w, h) {
+    const L = labEl.getBoundingClientRect(), D = dockEl.getBoundingClientRect();
+    let dx = 0, dy = 0;
+    if (w >= 760) dx = (L.right + 8) / 2;
+    else dy = ((L.bottom + D.top) / 2 - h / 2);
+    camera.setViewOffset(w, h, -dx, -dy, w, h);
+  }
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    viewOffset(w, h);
+    cameraGoal();
+  }
+  window.addEventListener('resize', resize);
+
+  /* ---------------- HUD ---------------- */
+  const $ = (id) => document.getElementById(id);
+  const hud = (() => {
+    const ultsEl = $('ults');
+    ULTS.forEach((u, i) => {
+      const b = document.createElement('button');
+      b.className = 'ult';
+      b.dataset.id = u.id;
+      b.setAttribute('role', 'option');
+      b.style.setProperty('--c', u.color);
+      b.innerHTML = `<span class="orb"></span><span class="nm">${u.name}<small>${u.kind} · ${u.hint}</small></span><span class="key">${KEYS[i]}</span>`;
+      b.addEventListener('click', () => select(u.id));
+      ultsEl.appendChild(b);
+    });
+    const tags = new Map();
+    everyone.forEach((p) => {
+      const el = document.createElement('div');
+      el.className = 'tag';
+      el.innerHTML = `<span class="st"></span><span class="bar"><i></i></span>`;
+      $('tags').appendChild(el);
+      tags.set(p, { el, st: el.querySelector('.st'), bar: el.querySelector('.bar'), fill: el.querySelector('.bar i'), last: '' });
+    });
+    const resultEl = $('result');
+    let resultT = 0;
+    const tmp = new THREE.Vector3();
+    return {
+      select() {
+        const u = UL[lab.ult];
+        document.documentElement.style.setProperty('--ult', u.color);
+        ultsEl.querySelectorAll('.ult').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.id === u.id)));
+        const sel = ultsEl.querySelector(`[data-id="${u.id}"]`);
+        if (sel && sel.scrollIntoView && ultsEl.scrollWidth > ultsEl.clientWidth) sel.scrollIntoView({ block: 'nearest', inline: 'center' });
+        $('dKind').textContent = u.kind === 'Shot' ? 'Shot · next hit' : 'Boost · instant';
+        $('dLive').hidden = !u.live;
+        $('dDesc').textContent = u.desc;
+        $('dStats').innerHTML = u.stats.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+        $('lastShot').textContent = '';
+        this.tally();
+        this.fire();
+      },
+      tally() {
+        const t = tally[lab.ult], p = tally.plain;
+        $('tFired').textContent = t.fired;
+        $('tWin').textContent = t.win;
+        $('tRet').textContent = t.ret;
+        const pct = (x) => (x.fired ? Math.round((x.win / x.fired) * 100) + '%' : 'none yet');
+        $('compare').textContent = `Winner rate: ${pct(t)} with ${UL[lab.ult].name}, ${pct(p)} with plain drives` +
+          (p.fired ? ` (${p.fired} hit)` : '. Turn auto-fire off to hit plain drives.');
+      },
+      lastShot(sh) {
+        const parts = [`Last hit ${Math.round(sh.speed)} ft/s`, `bounce at ${sh.land.t.toFixed(2)} s`];
+        if (sh.kind === 'wind' || lab.ult === 'wind') parts.push();
+        if (lab.ult === 'wind') parts.push(`your run speed ${youSpeed().toFixed(1)} ft/s`);
+        if (sh.fakeLand) parts.push(`bent ${Math.abs(sh.land.x - sh.fakeLand.x).toFixed(1)} ft`);
+        $('lastShot').textContent = parts.join(' · ');
+      },
+      fire() {
+        const u = UL[lab.ult], btn = $('fire');
+        let label = 'FIRE', sub = 'M key', fill = 1;
+        if (u.kind === 'Shot' && S.armed) { label = 'ARMED'; sub = 'next hit'; }
+        if (u.id === 'warp' && S.warpT > 0) { label = S.warpT.toFixed(1); sub = 'seconds'; fill = S.warpT / WARP.time; }
+        if (u.id === 'tide' && S.tideT > 0) { label = S.tideT.toFixed(1); sub = 'seconds'; fill = S.tideT / TIDE.time; }
+        if (u.id === 'cosmo' && S.cosmo) { label = 'COSMO'; sub = 'ring out'; }
+        if (u.id === 'gas' && S.gasT > 0) { label = S.gasT.toFixed(1); sub = 'seconds'; fill = S.gasT / GAS.time; }
+        if (u.id === 'hole' && S.holeT > 0) { label = S.holeT.toFixed(1); sub = 'seconds'; fill = S.holeT / HOLE.time; }
+        if (u.id === 'glass' && S.glassT > 0) { label = S.glassT.toFixed(1); sub = 'seconds'; fill = S.glassT / GLASS.time; }
+        if (u.id === 'wind' && S.windT > 0) { label = S.windT.toFixed(1); sub = 'seconds'; fill = S.windT / WIND.time; }
+        btn.classList.toggle('armed', S.armed || (u.id === 'warp' && S.warpT > 0) || (u.id === 'wind' && S.windT > 0) || (u.id === 'glass' && S.glassT > 0) || (u.id === 'hole' && S.holeT > 0) || (u.id === 'gas' && S.gasT > 0) || (u.id === 'cosmo' && !!S.cosmo) || (u.id === 'tide' && S.tideT > 0));
+        btn.style.setProperty('--fill', fill.toFixed(3));
+        if ($('fireLbl').textContent !== label) $('fireLbl').textContent = label;
+        if ($('fireSub').textContent !== sub) $('fireSub').textContent = sub;
+      },
+      result(kind, big, small) {
+        $('rBig').textContent = big;
+        $('rSmall').textContent = small;
+        resultEl.className = 'result panel show ' + (kind === 'win' ? 'win' : kind === 'miss' ? '' : 'lose');
+        resultT = 2.2;
+      },
+      frame(dt) {
+        if (resultT > 0) { resultT -= dt; if (resultT <= 0) resultEl.classList.remove('show'); }
+        this.fire();
+        const w = window.innerWidth, h = window.innerHeight;
+        tags.forEach((t, p) => {
+          let text = p.status;
+          if (p.frozen > 0) text = `FROZEN ${p.frozen.toFixed(1)}`;
+          if (p === you && !text && S.windT > 0) text = `+30% SPEED`;
+          if (t.last !== text) { t.st.textContent = text; t.last = text; }
+          const showBar = p === you || p.stamina < 0.999;
+          t.bar.style.display = showBar ? '' : 'none';
+          if (t.bar) {
+            t.fill.style.width = (p.stamina * 100).toFixed(1) + '%';
+            t.bar.className = 'bar' + (p.stamina >= 0.75 ? '' : p.stamina >= 0.5 ? ' mid' : ' low');
+          }
+          tmp.set(p.pos.x, p === you ? 7.6 : 6.6, p.pos.z).project(camera);
+          const on = tmp.z < 1 && Math.abs(tmp.x) < 1.1 && Math.abs(tmp.y) < 1.1 && (text || showBar);
+          t.el.style.display = on ? '' : 'none';
+          if (on) t.el.style.transform = `translate(${((tmp.x * 0.5 + 0.5) * w).toFixed(1)}px, ${((-tmp.y * 0.5 + 0.5) * h).toFixed(1)}px) translate(-50%, -100%)`;
+        });
+      },
+    };
+  })();
+
+  function select(id) {
+    if (!UL[id]) return;
+    lab.ult = id;
+    S.armed = false;
+    S.warpT = 0;
+    S.autoWind = -1;
+    if (id !== 'wind') S.windT = 0;
+    S.glassT = 0;
+    S.holeT = 0;
+    S.gasT = 0;
+    S.cosmo = null;
+    S.tideT = 0;
+    saveLab();
+    hud.select();
+  }
+  function segment(id, key, parse, after) {
+    const box = $(id);
+    const sync = () => box.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(parse(b.dataset.v) === lab[key])));
+    box.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      lab[key] = parse(b.dataset.v);
+      saveLab(); sync();
+      if (after) after();
+    });
+    sync();
+    return sync;
+  }
+  const onOff = (v) => v === 'on';
+  const syncAuto = segment('autoSeg', 'auto', onOff, () => { if (!lab.auto) S.armed = false; });
+  const syncSpeed = segment('speedSeg', 'speed', Number);
+  const syncCam = segment('camSeg', 'cam', String, cameraGoal);
+  segment('pathSeg', 'paths', onOff);
+  segment('soundSeg', 'sound', onOff);
+  $('fire').addEventListener('click', () => arm(false));
+
+  const CAMS = ['behind', 'side', 'top', 'rival'], SPEEDS = [1, 0.5, 0.25];
+  window.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.code === 'KeyM') { arm(false); e.preventDefault(); }
+    else if (/^Digit[0-9]$/.test(e.code)) { const n = +e.code.slice(5); if (ULTS[(n + 9) % 10]) select(ULTS[(n + 9) % 10].id); }
+    else if (e.code === 'Minus' && ULTS[10]) select(ULTS[10].id);
+    else if (e.code === 'Equal' && ULTS[11]) select(ULTS[11].id);
+    else if (e.code === 'KeyA') { lab.auto = !lab.auto; if (!lab.auto) S.armed = false; saveLab(); syncAuto(); }
+    else if (e.code === 'KeyC') { lab.cam = CAMS[(CAMS.indexOf(lab.cam) + 1) % CAMS.length]; saveLab(); syncCam(); cameraGoal(); }
+    else if (e.code === 'KeyS') { lab.speed = SPEEDS[(SPEEDS.indexOf(lab.speed) + 1) % SPEEDS.length]; saveLab(); syncSpeed(); }
+  });
+
+  /* ---------------- loop ---------------- */
+  function render(dt) {
+    const w = window.innerWidth, h = window.innerHeight;
+    if (w && h && (Math.abs(camera.aspect - w / h) > 0.001)) resize();
+    viewOffset(w, h);
+    cameraGoal();
+    if (camSnap) { camPos.copy(wantPos); camLook.copy(wantLook); camSnap = false; }
+    const k = 1 - Math.exp(-dt * 4);
+    camPos.lerp(wantPos, k);
+    camLook.lerp(wantLook, k);
+    camera.position.copy(camPos);
+    if (S.shake > 0) {
+      S.shake = Math.max(0, S.shake - dt);
+      const s = S.shake * 0.6;
+      camera.position.x += (Math.random() - 0.5) * s;
+      camera.position.y += (Math.random() - 0.5) * s;
+    }
+    camera.lookAt(camLook);
+    fx.update(dt * lab.speed, S.time);
+    hud.frame(dt);
+    renderer.render(scene, camera);
+  }
+
+  resize();
+  resetRally();
+  everyone.forEach((p) => animate(p, 0.016));
+  hud.select();
+
+  let last = performance.now();
+  function frame(now) {
+    const raw = Math.max(0, Math.min(0.05, (now - last) / 1000));
+    last = now;
+    update(raw * lab.speed);
+    render(raw);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  window.__lab = { lab, S, tally, ball, fakes, you, rex, juno, update, render, select, arm, simulate };
+})();
+</script>
