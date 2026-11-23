@@ -17,6 +17,6 @@ Open `index.html` in a browser to play (an internet connection is needed to load
 - **Developer:** Ken
 - **Release Year:** 2026
 
-For private, non-commercial use only; not for distribution, resale, or public release.
+Free to play and share for non-commercial use; not for resale.
 
 All AI-generated content was reviewed, refined, and integrated by the developer to ensure consistency with the game's artistic direction and quality standards.
