@@ -3195,7 +3195,7 @@
   const FROST = { freeze: 0.5, tire: 0.3, bounce: 0.75 };   // bounce: ball speed kept on the first bounce
   const QUAKE = { lift: 1, turn: [30, 60], keep: 1.0, crack: 3 };
   const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16, both: 0.75 };
-  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
+  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.5, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
   const GAS = { time: 3, mishit: 0.55 };
   const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // x, z: where it can open (baseline is at 22)
   const GLASS = { time: 8, h: 6.5, lift: 1.5, z: 0.35, halfW: COURT.postX / 3 };
@@ -3510,7 +3510,7 @@
       if (r === c.near) tz = sideSign(r.team) * COURT.halfL;                                     // back to the baseline
       else tx = (Math.abs(fx0) > 0.3 ? Math.sign(fx0) : (r === rv[0] ? -1 : 1)) * COURT.halfW;   // out to the sideline
       r.knock = { fx: fx0, fz: fz0, tx, tz, t: 0 };
-      r.stamina = Math.max(0, r.stamina - COSMO.fatigue);   // each rival loses 25% of their fatigue bar
+      r.stamina = Math.max(0, r.stamina - COSMO.fatigue);   // each hit rival loses 50% of their fatigue bar
       ufx.cosmoHit(r);
     });
     if (Math.abs(c.z) > AREA.halfL) U.cosmo = null;
