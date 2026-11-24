@@ -824,7 +824,7 @@
     cosmo:  { name: 'Cosmo',      kind: 'Boost', color: '#ffc23d', hex: 0xffc23d, desc: 'A golden ring knocks back both rivals half the time, otherwise just one of them.' },
     curve:  { name: 'Flaky',      kind: 'Shot',  color: '#c45cff', hex: 0xc45cff, desc: 'Your next hit bends hard sideways after the net.' },
     gas:    { name: 'Poison',     kind: 'Boost', color: '#b44dd6', hex: 0xb44dd6, desc: 'Gasses both rivals for 3 s: 55% of their hits go wrong.' },
-    comet:  { name: 'One Shot',   kind: 'Shot',  color: '#ff7a1a', hex: 0xff7a1a, desc: 'Your next hit is a blazing 75 ft/s shot; rivals react 0.2 s late.' },
+    comet:  { name: 'One Shot',   kind: 'Shot',  color: '#ff7a1a', hex: 0xff7a1a, desc: 'Your next hit is a blazing 75 ft/s shot; rivals react 0.4 s late.' },
     warp:   { name: 'Time Warp',  kind: 'Boost', color: '#4fd1c5', hex: 0x4fd1c5, desc: 'For 3 s the ball moves at 70% and the rivals at 45%.' },
     frost:  { name: 'Cold Snap',  kind: 'Shot',  color: '#7fe3ff', hex: 0x7fe3ff, desc: 'A low kitchen drop that freezes the nearest rival for 0.5 s.' },
     tide:   { name: 'High Tide',  kind: 'Boost', color: '#2fb4ff', hex: 0x2fb4ff, desc: 'Floods their court for 2 s (75% both rivals, 25% just one): once they move, they cannot stop, only brake to half speed by walking back.' },
@@ -1775,11 +1775,11 @@
   };
   // Ultimate (yours only): One Shot. The meter fills as you hit and as
   // your team wins points; M arms it and your next hit becomes a blazing,
-  // very fast shot that opponents react to 0.2 s late.
+  // very fast shot that opponents react to 0.4 s late.
   const ULT = {
     perHit: 0.12,
     perPoint: 0.15,
-    delay: 0.2,     // extra reaction time opponents need for a comet
+    delay: 0.4,     // extra reaction time opponents need for a comet
   };
 
   function speedMult(p) {
@@ -2758,6 +2758,11 @@
       scene.add(m);
       trail.push(m);
     }
+    // One Shot: a fiery glow around the ball.
+    const cometGlow = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
+    cometGlow.visible = false;
+    scene.add(cometGlow);
     const history = [];
 
     const reach = flatRing(REACH - 0.1, REACH, 0xffffff, 0.16);
@@ -2800,7 +2805,7 @@
         ballMesh.position.copy(ball.pos);
         // An ultimate shot glows in its colour, runs larger, with a coloured trail.
         const LOOKS = {
-          comet:  [0xffb347, 0xff4a00, 1.2, 1.9, 0xffd166, 0xff4a14],
+          comet:  [0xffb347, 0xff4a00, 1.5, 2.6, 0xffd166, 0xff4a14, 3.6],   // One Shot: bigger fireball and a wide fire trail
           curve:  [0xe0b0ff, 0x8a1fe0, 1.0, 1.7, 0xe8c4ff, 0xa040ff],
           quake:  [0xffd9a0, 0x7a3d0a, 0.8, 1.7, 0xf0c08a, 0x9a5a2b],
           frost:  [0xe6fbff, 0x2fb6e6, 0.9, 1.7, 0xffffff, 0x7fe3ff],
@@ -2840,9 +2845,15 @@
           m.visible = moving && !!hp;
           if (hp) m.position.copy(hp);
           m.material.color.setHex(comet ? (i < 3 ? lk[4] : lk[5]) : ballColor);
-          m.scale.setScalar((1 - i / (TRAIL + 2)) * (comet ? lk[3] : 1));
+          m.scale.setScalar((1 - i / (TRAIL + 2)) * (comet ? lk[6] || lk[3] : 1));
+          m.material.opacity = (lk && lk[6] ? 0.7 : 0.32) * (1 - i / TRAIL);   // One Shot's trail burns brighter
         });
 
+        cometGlow.visible = !!(lk && lk[6]);
+        if (cometGlow.visible) {
+          cometGlow.position.copy(ball.pos);
+          cometGlow.scale.setScalar(5.2 + Math.sin(time * 31) * 0.5 + Math.sin(time * 13) * 0.4);   // flickering fire
+        }
         reach.visible = !state.demo && !state.autoplay;
         reach.position.set(you.pos.x, 0.035, you.pos.z);
         const live = canHit(you);

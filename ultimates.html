@@ -1126,8 +1126,8 @@
 
   const ULTS = [
     { id: 'comet', name: 'One Shot', kind: 'Shot', color: '#ff7a1a', hex: 0xff7a1a, live: true, hint: 'Blazing fast hit',
-      desc: 'Your next hit becomes a blazing 75 ft/s drive with a fire trail. Rivals start moving 0.2 s late.',
-      stats: [['Ball speed', '75 ft/s (a drive is 43)'], ['Rivals', 'React 0.2 s late'], ['Lasts', 'One hit']] },
+      desc: 'Your next hit becomes a blazing 75 ft/s drive with a fire trail. Rivals start moving 0.4 s late.',
+      stats: [['Ball speed', '75 ft/s (a drive is 43)'], ['Rivals', 'React 0.4 s late'], ['Lasts', 'One hit']] },
     { id: 'curve', name: 'Flaky', kind: 'Shot', color: '#c45cff', hex: 0xc45cff, hint: 'Bends after the net',
       desc: 'Your next hit bends hard sideways once it is in the air. Rivals run for the straight line until they read the bend just after the net.',
       stats: [['Ball speed', '45 ft/s'], ['Bend', 'About 8 ft sideways'], ['Rivals', 'Chase the straight line first']] },
@@ -1181,7 +1181,7 @@
   const WIND = { time: 10, boost: 1.3, tired: 0.45 };
   const FROST = { freeze: 0.5, tire: 0.3, bounce: 0.75 };   // tire: fatigue both rivals lose
   const QUAKE = { lift: 1, turn: [55, 85], keep: 1.0, crack: 3 };
-  const COMET = { delay: 0.2 };
+  const COMET = { delay: 0.4 };
   const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16, both: 0.75 };   // turn: rad/s; start: speed (ft/s) that counts as moving
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };   // flat like a frisbee, at chest height
   const GAS = { time: 3, mishit: 0.55 };
@@ -1990,7 +1990,7 @@
       glass:  { color: 0xdcf54a, emis: 0x9a3a00, glow: 0.5,  scale: 1.5, trail: [0xffd27a, 0xff6a1f] },
       warp:   { color: 0xdcf54a, emis: 0x1f8a80, glow: 0.6,  scale: 1.5, trail: [0x9ff5ec, 0x4fd1c5] },
       wind:   { color: 0xdcf54a, emis: 0x4a5a00, glow: 0.35, scale: 1.5, trail: [0xc8f7a8, 0x7be05a] },
-      comet:  { color: 0xffb347, emis: 0xff4a00, glow: 1.2,  scale: 1.9, trail: [0xffd166, 0xff4a14] },
+      comet:  { color: 0xffb347, emis: 0xff4a00, glow: 1.5,  scale: 2.6, tscale: 3.6, trail: [0xffd166, 0xff4a14] },
       curve:  { color: 0xe0b0ff, emis: 0x8a1fe0, glow: 1.0,  scale: 1.7, trail: [0xe8c4ff, 0xa040ff] },
       quake:  { color: 0xffd9a0, emis: 0x7a3d0a, glow: 0.8,  scale: 1.7, trail: [0xf0c08a, 0x9a5a2b] },
       frost:  { color: 0xe6fbff, emis: 0x2fb6e6, glow: 0.9,  scale: 1.7, trail: [0xffffff, 0x7fe3ff] },
@@ -2021,11 +2021,22 @@
         const m = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.34 * (1 - i / n), depthWrite: false }));
         m.visible = false; scene.add(m); trail.push(m);
       }
+      // One Shot: a fiery glow around the ball.
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
+      glow.visible = false; scene.add(glow);
       const history = [];
       return {
         mesh,
         set(b, look, show, alpha = 1) {
           mesh.visible = shadow.visible = show;
+          glow.visible = show && !!look.tscale;
+          if (glow.visible) {
+            const t = performance.now() / 1000;
+            glow.position.copy(b.pos);
+            glow.scale.setScalar(5.2 + Math.sin(t * 31) * 0.5 + Math.sin(t * 13) * 0.4);   // flickering fire
+            glow.material.opacity = 0.45 * alpha;
+          }
           if (!show) { trail.forEach((m) => { m.visible = false; }); history.length = 0; return; }
           mesh.position.copy(b.pos);
           mesh.material.color.setHex(look.color);
@@ -2045,8 +2056,8 @@
             m.visible = moving && !!hp;
             if (hp) m.position.copy(hp);
             m.material.color.setHex(i < n / 3 ? look.trail[0] : look.trail[1]);
-            m.material.opacity = 0.34 * (1 - i / n) * alpha * (look === LOOK.plain ? 1 : 1.6);
-            m.scale.setScalar((1 - i / (n + 2)) * look.scale / 1.5 * (look === LOOK.plain ? 1 : 1.25));
+            m.material.opacity = 0.34 * (1 - i / n) * alpha * (look === LOOK.plain ? 1 : look.tscale ? 2.1 : 1.6);   // One Shot burns brightest
+            m.scale.setScalar((1 - i / (n + 2)) * (look.tscale || look.scale) / 1.5 * (look === LOOK.plain ? 1 : 1.25));
           });
         },
       };
