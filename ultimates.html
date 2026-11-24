@@ -1148,7 +1148,7 @@
       stats: [['Lasts', '4 s'], ['Size', 'About 7 ft wide, 12 ft tall'], ['Blocks', 'The middle third of the net']] },
     { id: 'quake', name: 'Earthquake', kind: 'Shot', color: '#d9894a', hex: 0xd9894a, hint: 'Cracks the court',
       desc: 'Your next hit shakes the ground and cracks the rival court where the ball will land. The shaking keeps rivals off balance until it lands, then the ball kicks off the crack at a normal height but an unexpected angle.',
-      stats: [['Ball speed', '40 ft/s'], ['Bounce', 'Normal height, turned 55 to 85 degrees'], ['Rivals', 'Off balance until it lands'], ['Crack', 'Lasts 3 s']] },
+      stats: [['Ball speed', '35 ft/s'], ['Bounce', 'Normal height, turned 55 to 85 degrees'], ['Rivals', 'Off balance until it lands'], ['Crack', 'Lasts 3 s']] },
     { id: 'hole', name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, hint: 'Pulls rivals together',
       desc: 'Opens a black hole halfway between the two rivals for 1 s. Both rivals are dragged toward the middle. They can still run for the ball, but the pull slows them down whenever they run away from the centre. The ball is not affected.',
       stats: [['Lasts', '1 s'], ['Pull', '6 ft/s toward the centre'], ['Rivals', 'Can fight it: 14 ft/s run minus the pull'], ['Ball', 'Not affected']] },
@@ -1448,7 +1448,7 @@
       sfx.frost();
     } else if (kind === 'quake') {
       const tx = rand(-4, 4), tz = -rand(11, 15);
-      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 40, 0.4);
+      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 35, 0.4);
       S.shake = 0.5;
       sfx.rumble();
     } else if (kind === 'mirage') {

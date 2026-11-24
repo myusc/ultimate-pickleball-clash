@@ -3366,7 +3366,7 @@
       usfx.frost();
     } else if (kind === 'quake') {
       const tx = rand(-4, 4), tz = s * rand(11, 15);
-      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 40, 0.4);
+      v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 35, 0.4);
       state.shake = 0.5;
       usfx.rumble();
     } else if (kind === 'mirage') {
