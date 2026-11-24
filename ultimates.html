@@ -1144,8 +1144,8 @@
       desc: 'Refills the fatigue bars of you and your partner at once. For 10 s you both run 30% faster and never mis-hit: no unforced errors, no off-centre contact and no Poison mis-hits. The lab has no partner and your lab shots never miss, so here you see the speed. The lab starts each rally with you tired, at 45%, and feeds wide, so the change is easy to see.',
       stats: [['Fatigue', 'Both refilled to 100%'], ['Run speed', '+30% for 10 s'], ['Mis-hits', 'None while it lasts'], ['Who', 'You and your partner'], ['Lasts', '10 s']] },
     { id: 'glass', name: 'Firewall', kind: 'Boost', color: '#ff6a1f', hex: 0xff6a1f, hint: 'Blocks their returns',
-      desc: 'Raises a wall of fire over the middle third of the net for 4 s. Any ball the rivals hit through it bounces straight back to their side, but balls that cross the outer thirds get past. Your own shots pass through it.',
-      stats: [['Lasts', '4 s'], ['Size', 'About 7 ft wide, 12 ft tall'], ['Blocks', 'The middle third of the net']] },
+      desc: 'Raises a wall of fire over the middle third of the net for 4 s. It is 6.5 ft tall. Any ball the rivals hit through it bounces back up to their side, 50% higher than a plain rebound, but lobs fly over it and balls that cross the outer thirds get past. Your own shots pass through it.',
+      stats: [['Lasts', '4 s'], ['Size', 'About 7 ft wide, 6.5 ft tall'], ['Rebound', '50% higher'], ['Lobs', 'Fly over it'], ['Blocks', 'The middle third of the net']] },
     { id: 'quake', name: 'Earthquake', kind: 'Shot', color: '#d9894a', hex: 0xd9894a, hint: 'Cracks the court',
       desc: 'Your next hit shakes the ground and cracks the rival court where the ball will land. The shaking keeps rivals off balance until it lands, then the ball kicks off the crack at a normal height but an unexpected angle.',
       stats: [['Ball speed', '35 ft/s'], ['Bounce', 'Normal height, turned 55 to 85 degrees'], ['Rivals', 'Off balance until it lands'], ['Crack', 'Lasts 3 s']] },
@@ -1186,7 +1186,7 @@
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };   // flat like a frisbee, at chest height
   const GAS = { time: 3, mishit: 0.55 };
   const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // y: the hole floats above their heads
-  const GLASS = { time: 4, h: 12, z: 0.35, halfW: COURT.postX / 3 };   // middle third of the net, just on your side
+  const GLASS = { time: 4, h: 6.5, lift: 1.5, z: 0.35, halfW: COURT.postX / 3 };   // middle third of the net, just on your side
 
   /* ---------------- players ---------------- */
   function makePlayer(id, x, z) {
@@ -1767,6 +1767,7 @@
             ball.pos.z = GLASS.z - 0.01;
             ball.vel.z = -Math.abs(ball.vel.z) * 0.75;
             ball.vel.x *= 0.85;
+            ball.vel.y = Math.max(Math.abs(ball.vel.y), 8) * Math.sqrt(GLASS.lift);   // pops back up 50% higher
             fx.glassHit(ball.pos);
             sfx.glassHit();
             S.shake = 0.25;

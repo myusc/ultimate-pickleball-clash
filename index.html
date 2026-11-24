@@ -816,7 +816,7 @@
 
   // Ultimates, in roster order: player #1 has Firewall, #2 Earthquake, and so on.
   const ULT_INFO = {
-    glass:  { name: 'Firewall',   kind: 'Boost', color: '#ff6a1f', hex: 0xff6a1f, desc: 'A wall of fire over the middle third of the net for 4 s blocks their returns.' },
+    glass:  { name: 'Firewall',   kind: 'Boost', color: '#ff6a1f', hex: 0xff6a1f, desc: 'A 6.5 ft wall of fire over the middle third of the net for 4 s bounces their returns back high; lobs fly over it.' },
     quake:  { name: 'Earthquake', kind: 'Shot',  color: '#d9894a', hex: 0xd9894a, desc: 'Your next hit cracks their court and kicks off at an odd angle.' },
     mirage: { name: 'Mirage',     kind: 'Shot',  color: '#ff5fb0', hex: 0xff5fb0, desc: 'Your next hit splits into three balls; two are fakes.' },
     wind:   { name: 'Reborn',     kind: 'Boost', color: '#7be05a', hex: 0x7be05a, desc: 'Refills your and your partner\'s fatigue; for 10 s you both run 30% faster and never mis-hit.' },
@@ -3198,7 +3198,7 @@
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
   const GAS = { time: 3, mishit: 0.55 };
   const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // x, z: where it can open (baseline is at 22)
-  const GLASS = { time: 4, h: 12, z: 0.35, halfW: COURT.postX / 3 };
+  const GLASS = { time: 4, h: 6.5, lift: 1.5, z: 0.35, halfW: COURT.postX / 3 };
   // Each boost: time left, and the team that used it (its opponents feel it).
   const fresh = () => ({ t: 0, team: 'a', user: null });
   const U = { warp: fresh(), glass: fresh(), hole: Object.assign(fresh(), { x: 0, z: -12 }), gas: fresh(), tide: fresh(), cosmo: null, ballT: 0, shot: null };
@@ -3437,6 +3437,8 @@
         ball.pos.z = s * (GLASS.z - 0.01);
         ball.vel.z = -s * Math.abs(ball.vel.z) * 0.75;
         ball.vel.x *= 0.85;
+        // It pops back up 50% higher than a plain rebound (height grows with speed squared).
+        ball.vel.y = Math.max(Math.abs(ball.vel.y), 8) * Math.sqrt(GLASS.lift);
         ball.blocked = true;
         ufx.glassHit(ball.pos);
         usfx.glassHit();
