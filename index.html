@@ -3184,7 +3184,7 @@
   const FROST = { freeze: 1.05, tire: 0.3 };
   const QUAKE = { lift: 1.35, turn: [55, 85], keep: 1.0, crack: 3 };
   const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16 };
-  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
+  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
   const GAS = { time: 3, mishit: 0.55 };
   const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10 };
   const GLASS = { time: 4, h: 12, z: 0.35, halfW: COURT.postX / 3 };
@@ -3479,7 +3479,7 @@
       else tx = (Math.abs(fx0) > 0.3 ? Math.sign(fx0) : (r === rv[0] ? -1 : 1)) * COURT.halfW;   // out to the sideline
       r.knock = { fx: fx0, fz: fz0, tx, tz, t: 0 };
       r.stun = Math.max(r.stun || 0, COSMO.knock + 0.1);
-      r.stamina = Math.min(r.stamina, COSMO.fatigue);
+      r.stamina = Math.max(0, r.stamina - COSMO.fatigue);   // each rival loses 25% of their fatigue bar
       ufx.cosmoHit(r);
     });
     if (Math.abs(c.z) > AREA.halfL) U.cosmo = null;
