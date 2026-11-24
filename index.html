@@ -672,6 +672,10 @@
   .hist .who { font-size: 12.5px; line-height: 1.3; }
   .hist .vs { font-size: 12px; color: var(--muted); line-height: 1.3; }
   .hist .none { font-size: 13px; color: var(--muted); }
+  .help .hist details.older { margin: 6px 0 0; font-size: inherit; }
+  .help .hist details.older summary { margin: 0; padding: 2px 2px; font-size: 12.5px; color: var(--muted); }
+  .help .hist details.older summary:hover { color: var(--paper); }
+  .help .hist details.older[open] summary { margin-bottom: 6px; }
 
   .result .final {
     font-family: var(--font-display);
@@ -804,11 +808,13 @@
       <dl>
         <dt>Title</dt><dd>Ultimate Pickleball Clash</dd>
         <dt>Genre</dt><dd>Sports</dd>
-        <dt>Developer</dt><dd>Ken</dd>
+        <dt>Developer</dt><dd>Ken (from San Diego)</dd>
         <dt>Release Year</dt><dd>2026</dd>
       </dl>
       <p>Free to play and share for non-commercial use; not for resale.</p>
+      <p>This project is a fan fiction and is in no way affiliated with, endorsed by, or associated with anyone named in the game.</p>
       <p>All AI-generated content was reviewed, refined, and integrated by the developer to ensure consistency with the game's artistic direction and quality standards.</p>
+      <p>The primary goal of this Pickleball game project is for pickleball educational and research purpose only.</p>
     </details>
   </div>
 </div>
@@ -3129,16 +3135,22 @@
     });
     const stopPick = () => { clearInterval(pickTimer); pickTimer = null; };
 
+    // Last 3 games: the newest always shows; the two older ones fold away.
     function showHistory() {
       const el = document.getElementById('menuHist');
       const hist = store.get('kc-history', []).slice(0, 3);
       const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const row = (g) => {
+        const won = g.winner === 'a', n = g.names || [];
+        return `<li><b class="res ${won ? 'w' : 'l'}">${won ? 'Won' : 'Lost'} ${g.a}–${g.b}</b>` +
+          `<span class="who">${esc(n[0])} (you) &amp; ${esc(n[1])}</span><span class="vs">vs ${esc(n[2])} &amp; ${esc(n[3])}</span></li>`;
+      };
+      const wasOpen = !!el.querySelector('details[open]');   // keep it open if the player opened it
+      const older = hist.slice(1);
       el.innerHTML = '<span>Last 3 games</span>' + (hist.length
-        ? '<ol>' + hist.map((g) => {
-          const won = g.winner === 'a', n = g.names || [];
-          return `<li><b class="res ${won ? 'w' : 'l'}">${won ? 'Won' : 'Lost'} ${g.a}–${g.b}</b>` +
-            `<span class="who">${esc(n[0])} (you) &amp; ${esc(n[1])}</span><span class="vs">vs ${esc(n[2])} &amp; ${esc(n[3])}</span></li>`;
-        }).join('') + '</ol>'
+        ? `<ol>${row(hist[0])}</ol>` + (older.length
+          ? `<details class="older"${wasOpen ? ' open' : ''}><summary>${older.length} older game${older.length > 1 ? 's' : ''}</summary><ol>${older.map(row).join('')}</ol></details>`
+          : '')
         : '<div class="none">No games yet. Your last 3 results will show here.</div>');
     }
 
