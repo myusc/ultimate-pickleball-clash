@@ -1129,8 +1129,8 @@
       desc: 'Your next hit becomes a blazing 75 ft/s drive with a fire trail. Rivals start moving 0.4 s late.',
       stats: [['Ball speed', '75 ft/s (a drive is 43)'], ['Rivals', 'React 0.4 s late'], ['Lasts', 'One hit']] },
     { id: 'curve', name: 'Flaky', kind: 'Shot', color: '#c45cff', hex: 0xc45cff, hint: 'Bends after the net',
-      desc: 'Your next hit bends hard sideways once it is in the air, left or right at random. Rivals run for the straight line until they read the bend just after the net.',
-      stats: [['Ball speed', '45 ft/s'], ['Bend', 'About 8 ft sideways, either way'], ['Rivals', 'Chase the straight line first']] },
+      desc: 'Your next hit bends hard sideways once it is in the air. Rivals run for the straight line until they read the bend just after the net.',
+      stats: [['Ball speed', '45 ft/s'], ['Bend', 'About 8 ft sideways'], ['Rivals', 'Chase the straight line first']] },
     { id: 'frost', name: 'Cold Snap', kind: 'Shot', color: '#7fe3ff', hex: 0x7fe3ff, hint: 'Freezing kitchen drop',
       desc: 'A soft drop into the rival kitchen that bounces low, at 75% of the normal bounce speed. The rival nearest to where it lands is frozen in place for 0.5 s, and both rivals lose 30% of their fatigue bar, so they run at 75% speed.',
       stats: [['Lands', '3 to 5 ft past the net'], ['Bounce', '75% of normal speed'], ['Rivals', 'Nearest one frozen 0.5 s'], ['Fatigue', 'Both rivals lose 30% (75% run speed)']] },
@@ -1425,18 +1425,17 @@
     } else if (kind === 'curve') {
       const side = rivalsCenterX() > 0 ? -1 : 1;
       const tx = side * rand(5, 8), tz = -rand(13, 18);
-      const bend = Math.random() < 0.5 ? -1 : 1;   // it can bend either way
       v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 45, 0.45);
       // x is linear in the starting sideways speed, so work out the bend
       // alone, then aim so the bent path lands on target.
       let y = P.y, vy = v.y, x = 0, vx = 0, age = 0, n = 0;
       while (y >= BALL_R && n < 1200) {
-        if (age > CURVE.after) vx += bend * CURVE.accel * STEP;
+        if (age > CURVE.after) vx += side * CURVE.accel * STEP;
         age += STEP; vy -= G * STEP; y += vy * STEP; x += vx * STEP; n++;
       }
       v.x = (tx - P.x - x) / (n * STEP);
       launch(ball, P, v);
-      ball.curve = bend * CURVE.accel;
+      ball.curve = side * CURVE.accel;
       shot.fakeLand = firstBounce(simulate(ball, 3, 0));
     } else if (kind === 'frost') {
       const near = rivals.reduce((a, r) => (Math.abs(r.pos.z) < Math.abs(a.pos.z) ? r : a));

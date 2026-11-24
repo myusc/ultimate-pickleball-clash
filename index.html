@@ -822,7 +822,7 @@
     wind:   { name: 'Reborn',     kind: 'Boost', color: '#7be05a', hex: 0x7be05a, desc: 'Refills your and your partner\'s fatigue; for 10 s you both run 30% faster and never mis-hit.' },
     hole:   { name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, desc: 'Opens a black hole near their baseline that drags both rivals toward it for 1 s.' },
     cosmo:  { name: 'Cosmo',      kind: 'Boost', color: '#ffc23d', hex: 0xffc23d, desc: 'A golden ring knocks back both rivals half the time, otherwise just one of them.' },
-    curve:  { name: 'Flaky',      kind: 'Shot',  color: '#c45cff', hex: 0xc45cff, desc: 'Your next hit bends hard sideways after the net, left or right at random.' },
+    curve:  { name: 'Flaky',      kind: 'Shot',  color: '#c45cff', hex: 0xc45cff, desc: 'Your next hit bends hard sideways after the net.' },
     gas:    { name: 'Poison',     kind: 'Boost', color: '#b44dd6', hex: 0xb44dd6, desc: 'Gasses both rivals for 3 s: 55% of their hits go wrong.' },
     comet:  { name: 'One Shot',   kind: 'Shot',  color: '#ff7a1a', hex: 0xff7a1a, desc: 'Your next hit is a blazing 75 ft/s shot; rivals react 0.4 s late.' },
     warp:   { name: 'Time Warp',  kind: 'Boost', color: '#4fd1c5', hex: 0x4fd1c5, desc: 'For 3 s the ball moves at 70% and the rivals at 45%.' },
@@ -3372,17 +3372,16 @@
     if (kind === 'curve') {
       const side = (rv[0].pos.x + rv[1].pos.x) / 2 > 0 ? -1 : 1;
       const tx = side * rand(5, 8), tz = s * rand(13, 18);
-      const bend = Math.random() < 0.5 ? -1 : 1;   // it can bend either way
       v = solveShot(P, tx, tz, Math.hypot(tx - P.x, tz - P.z) / 45, 0.45);
       // x is linear in the starting sideways speed: work out the bend alone,
       // then aim so the bent path lands on target.
       let y = P.y, vy = v.y, x = 0, vx = 0, age = 0, n = 0;
       while (y >= BALL_R && n < 1200) {
-        if (age > CURVE.after) vx += bend * CURVE.accel * STEP;
+        if (age > CURVE.after) vx += side * CURVE.accel * STEP;
         age += STEP; vy -= G * STEP; y += vy * STEP; x += vx * STEP; n++;
       }
       v.x = (tx - P.x - x) / (n * STEP);
-      ball.curve = bend * CURVE.accel;
+      ball.curve = side * CURVE.accel;
       usfx.curve();
     } else if (kind === 'frost') {
       const near = Math.abs(rv[0].pos.z) <= Math.abs(rv[1].pos.z) ? rv[0] : rv[1];
