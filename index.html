@@ -817,7 +817,7 @@
   // Ultimates, in roster order: player #1 has Firewall, #2 Earthquake, and so on.
   const ULT_INFO = {
     glass:  { name: 'Firewall',   kind: 'Boost', color: '#ff6a1f', hex: 0xff6a1f, desc: 'A wall of fire over the middle third of the net for 4 s blocks their returns.' },
-    quake:  { name: 'Earthquake', kind: 'Shot',  color: '#d9894a', hex: 0xd9894a, desc: 'Your next hit cracks their court and kicks up high at an odd angle.' },
+    quake:  { name: 'Earthquake', kind: 'Shot',  color: '#d9894a', hex: 0xd9894a, desc: 'Your next hit cracks their court and kicks off at an odd angle.' },
     mirage: { name: 'Mirage',     kind: 'Shot',  color: '#ff5fb0', hex: 0xff5fb0, desc: 'Your next hit splits into three balls; two are fakes.' },
     wind:   { name: 'Reborn',     kind: 'Boost', color: '#7be05a', hex: 0x7be05a, desc: 'Refills your fatigue and you run 30% faster for 6 s.' },
     hole:   { name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, desc: 'Drags both rivals toward a black hole for 1 s.' },
@@ -3182,7 +3182,7 @@
   const WARP = { time: 3, ball: 0.7, rivals: 0.45 };
   const WIND = { time: 6, boost: 1.3 };
   const FROST = { freeze: 0.5, tire: 0.3, bounce: 0.75 };   // bounce: ball speed kept on the first bounce
-  const QUAKE = { lift: 1.35, turn: [55, 85], keep: 1.0, crack: 3 };
+  const QUAKE = { lift: 1, turn: [55, 85], keep: 1.0, crack: 3 };
   const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16 };
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
   const GAS = { time: 3, mishit: 0.55 };
