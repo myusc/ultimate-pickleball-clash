@@ -2436,7 +2436,7 @@
       const x = smp.x - r * SWEET;
       const dist = Math.hypot(x - p.pos.x, z - p.pos.z);
       // Tired players know they are slower; a comet costs extra reaction time.
-      const need = prof.react + (ball.comet ? ULT.delay : 0) + Math.max(0, p.frozen || 0) + Math.max(0, p.stun || 0) + dist / (prof.speed * speedMult(p));
+      const need = prof.react + (ball.comet ? ULT.delay : 0) + Math.max(0, p.frozen || 0) + Math.max(0, p.stun || 0) + (p.knock ? Math.max(0, COSMO.knock - p.knock.t) : 0) + dist / (prof.speed * speedMult(p));
       const plan = { x, z, t: smp.t, bx: smp.x, by: smp.y, volley, dist };
       if (need <= smp.t) return Object.assign(plan, { ok: true });
       if (need - smp.t < fbGap) { fbGap = need - smp.t; fallback = plan; }
@@ -3478,7 +3478,6 @@
       if (r === c.near) tz = sideSign(r.team) * COURT.halfL;                                     // back to the baseline
       else tx = (Math.abs(fx0) > 0.3 ? Math.sign(fx0) : (r === rv[0] ? -1 : 1)) * COURT.halfW;   // out to the sideline
       r.knock = { fx: fx0, fz: fz0, tx, tz, t: 0 };
-      r.stun = Math.max(r.stun || 0, COSMO.knock + 0.1);
       r.stamina = Math.max(0, r.stamina - COSMO.fatigue);   // each rival loses 25% of their fatigue bar
       ufx.cosmoHit(r);
     });

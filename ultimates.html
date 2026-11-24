@@ -1557,7 +1557,7 @@
       if (s.z > -0.6 || s.y > 6.2 || s.y < 0.9) continue;
       if (s.b === 0 && Math.abs(s.z) < COURT.kitchen) continue;   // no volleys in the kitchen
       const x = s.x + SWEET, z = s.z - 0.4;
-      const need = Math.max(r.delay, 0) + Math.max(r.frozen, 0) + Math.hypot(x - r.pos.x, z - r.pos.z) / (RIVAL_SPEED * speedMult(r.stamina));
+      const need = Math.max(r.delay, 0) + Math.max(r.frozen, 0) + (r.knock ? Math.max(0, COSMO.knock - r.knock.t) : 0) + Math.hypot(x - r.pos.x, z - r.pos.z) / (RIVAL_SPEED * speedMult(r.stamina));
       const sl = s.t - need;
       if (sl > slack || !pick) { slack = sl; pick = { x, z, slack: sl }; }
       if (sl >= 0) break;
@@ -1725,7 +1725,6 @@
         if (r === c.near) tz = -COURT.halfL;                                        // all the way back to the baseline
         else tx = (Math.abs(fx) > 0.3 ? Math.sign(fx) : (r === rex ? -1 : 1)) * COURT.halfW;   // out to the sideline
         r.knock = { fx, fz, tx, tz, t: 0 };
-        r.delay = Math.max(r.delay, COSMO.knock + 0.1);
         r.stamina = Math.max(0, r.stamina - COSMO.fatigue);   // each rival loses 25% of their fatigue bar
         say(r, 'KNOCKED BACK', 1.2);
         fx_cosmoHit(r);
