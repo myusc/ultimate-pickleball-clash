@@ -820,7 +820,7 @@
     quake:  { name: 'Earthquake', kind: 'Shot',  color: '#d9894a', hex: 0xd9894a, desc: 'Your next hit cracks their court and kicks off at an odd angle.' },
     mirage: { name: 'Mirage',     kind: 'Shot',  color: '#ff5fb0', hex: 0xff5fb0, desc: 'Your next hit splits into three balls; two are fakes.' },
     wind:   { name: 'Reborn',     kind: 'Boost', color: '#7be05a', hex: 0x7be05a, desc: 'Refills your fatigue and you run 30% faster for 6 s.' },
-    hole:   { name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, desc: 'Drags both rivals toward a black hole for 1 s.' },
+    hole:   { name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, desc: 'Opens a black hole near their baseline that drags both rivals toward it for 1 s.' },
     cosmo:  { name: 'Cosmo',      kind: 'Boost', color: '#ffc23d', hex: 0xffc23d, desc: 'A golden ring knocks the rivals to the baseline and sideline.' },
     curve:  { name: 'Flaky',      kind: 'Shot',  color: '#c45cff', hex: 0xc45cff, desc: 'Your next hit bends hard sideways after the net.' },
     gas:    { name: 'Poison',     kind: 'Boost', color: '#b44dd6', hex: 0xb44dd6, desc: 'Gasses both rivals for 3 s: 55% of their hits go wrong.' },
@@ -3186,7 +3186,7 @@
   const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16 };
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
   const GAS = { time: 3, mishit: 0.55 };
-  const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10 };
+  const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // x, z: where it can open (baseline is at 22)
   const GLASS = { time: 4, h: 12, z: 0.35, halfW: COURT.postX / 3 };
   // Each boost: time left, and the team that used it (its opponents feel it).
   const fresh = () => ({ t: 0, team: 'a', user: null });
@@ -3246,7 +3246,7 @@
   }
   const glide = (p, tx, tz, maxSpeed, dt) => (flooded(p) ? slide : moveTo)(p, tx, tz, maxSpeed, dt);
 
-  // Black Hole: players can still run, but the hole drags them to the middle.
+  // Black Hole: players can still run, but the hole drags them toward it.
   function holePull(p, dt) {
     const side = p === teamOf(p.team)[0] ? -1 : 1;
     const dx = U.hole.x + side * HOLE.spread - p.pos.x, dz = U.hole.z - p.pos.z, d = Math.hypot(dx, dz);
@@ -3330,8 +3330,9 @@
       usfx.cosmo();
     } else if (id === 'hole') {
       if (!start('hole', HOLE.time)) return false;
-      U.hole.x = clamp((opp[0].pos.x + opp[1].pos.x) / 2, -8, 8);
-      U.hole.z = sideSign(other(T)) * clamp(Math.abs((opp[0].pos.z + opp[1].pos.z) / 2), 9, 18);
+      // A random spot near the opponents' baseline.
+      U.hole.x = rand(-HOLE.x, HOLE.x);
+      U.hole.z = sideSign(other(T)) * rand(HOLE.z[0], HOLE.z[1]);
       usfx.hole();
     }
     return true;

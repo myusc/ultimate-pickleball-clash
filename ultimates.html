@@ -1149,9 +1149,9 @@
     { id: 'quake', name: 'Earthquake', kind: 'Shot', color: '#d9894a', hex: 0xd9894a, hint: 'Cracks the court',
       desc: 'Your next hit shakes the ground and cracks the rival court where the ball will land. The shaking keeps rivals off balance until it lands, then the ball kicks off the crack at a normal height but an unexpected angle.',
       stats: [['Ball speed', '35 ft/s'], ['Bounce', 'Normal height, turned 55 to 85 degrees'], ['Rivals', 'Off balance until it lands'], ['Crack', 'Lasts 3 s']] },
-    { id: 'hole', name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, hint: 'Pulls rivals together',
-      desc: 'Opens a black hole halfway between the two rivals for 1 s. Both rivals are dragged toward the middle. They can still run for the ball, but the pull slows them down whenever they run away from the centre. The ball is not affected.',
-      stats: [['Lasts', '1 s'], ['Pull', '6 ft/s toward the centre'], ['Rivals', 'Can fight it: 14 ft/s run minus the pull'], ['Ball', 'Not affected']] },
+    { id: 'hole', name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, hint: 'Pulls rivals back',
+      desc: 'Opens a black hole at a random spot near the rival baseline for 1 s. Both rivals are dragged toward it. They can still run for the ball, but the pull slows them down whenever they run away from the hole. The ball is not affected.',
+      stats: [['Lasts', '1 s'], ['Where', 'Random spot near the rival baseline'], ['Pull', '6 ft/s toward the hole'], ['Rivals', 'Can fight it: 14 ft/s run minus the pull'], ['Ball', 'Not affected']] },
     { id: 'gas', name: 'Poison', kind: 'Boost', color: '#b44dd6', hex: 0xb44dd6, hint: 'Spoils both rivals\' hits',
       desc: 'A cloud of purple gas wraps around both rivals for 3 s. While they are in it, more than half of their hits go wrong and fly long or wide.',
       stats: [['Lasts', '3 s'], ['Target', 'Both rivals'], ['Mis-hits', '55% of their hits, normally 0%']] },
@@ -1185,7 +1185,7 @@
   const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16 };   // turn: rad/s; start: speed (ft/s) that counts as moving
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };   // flat like a frisbee, at chest height
   const GAS = { time: 3, mishit: 0.55 };
-  const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10 };   // y: the hole floats above their heads
+  const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // y: the hole floats above their heads
   const GLASS = { time: 4, h: 12, z: 0.35, halfW: COURT.postX / 3 };   // middle third of the net, just on your side
 
   /* ---------------- players ---------------- */
@@ -1534,8 +1534,8 @@
     } else if (u.id === 'hole') {
       if (S.holeT > 0) return;
       S.holeT = HOLE.time;
-      S.hole.x = clamp((rex.pos.x + juno.pos.x) / 2, -8, 8);
-      S.hole.z = clamp((rex.pos.z + juno.pos.z) / 2, -18, -9);
+      S.hole.x = rand(-HOLE.x, HOLE.x);   // a random spot near the rival baseline
+      S.hole.z = -rand(HOLE.z[0], HOLE.z[1]);
       say(rex, 'BOTH PULLED IN', HOLE.time);
       sfx.hole();
     }
@@ -1611,7 +1611,7 @@
     else if (S.tideT > 0 && r.status === 'SLIDING') r.statusT = Math.max(r.statusT, 0.1);
     if (S.holeT > 0) {
       // Black Hole: rivals still run where they want, but the hole drags them
-      // toward the centre the whole time, so running away from it is slow.
+      // toward the hole the whole time, so running away from it is slow.
       const side = r === rex ? -1 : 1;
       const dx = S.hole.x + side * HOLE.spread - r.pos.x, dz = S.hole.z - r.pos.z, d = Math.hypot(dx, dz);
       if (d > 0.3) {
