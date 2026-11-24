@@ -780,6 +780,14 @@
       </div>
     </div>
     <div class="opt">
+      <span id="venueLabel">Court</span>
+      <div class="seg" id="venueSeg" role="group" aria-labelledby="venueLabel">
+        <button type="button" data-v="park">Park</button>
+        <button type="button" data-v="gym">Gym</button>
+        <button type="button" data-v="backyard">Backyard</button>
+      </div>
+    </div>
+    <div class="opt">
       <span id="autoLabel">Auto-swing</span>
       <div class="seg" id="autoSeg" role="group" aria-labelledby="autoLabel">
         <button type="button" id="auto-off" data-v="off">Off</button>
@@ -822,7 +830,7 @@
 <div class="help pick" id="pick" role="dialog" aria-modal="true" aria-labelledby="pickTitle" hidden>
   <div class="card">
     <h2 id="pickTitle">Choose your player</h2>
-    <div class="count" id="pickCount"><small id="pickHint">Pick fast, or you get a random player</small><b id="pickTime">10</b></div>
+    <div class="count" id="pickCount"><small id="pickHint">Pick fast, or you get a random player</small><b id="pickTime">15</b></div>
     <div class="tbar"><i id="pickBar"></i></div>
     <div class="grid" id="pickGrid"></div>
   </div>
@@ -1378,6 +1386,7 @@
 
   /* =====================================================================
      COURT  (feet; net on z = 0, your team plays the +Z half)
+     courts.html has a copy of this section through VENUES; keep the two in sync.
      ===================================================================== */
   const COURT = {
     halfW: 10,        // 20 ft wide
@@ -1399,21 +1408,22 @@
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  {
+  // A vertical sky gradient, top to horizon: [[stop, colour], ...].
+  function skyTexture(stops) {
     const c = document.createElement('canvas');
     c.width = 4; c.height = 256;
     const g = c.getContext('2d');
     const grad = g.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#4f9fea');
-    grad.addColorStop(0.55, '#a9d6ff');
-    grad.addColorStop(1, '#e6f3ff');
+    stops.forEach(([at, col]) => grad.addColorStop(at, col));
     g.fillStyle = grad;
     g.fillRect(0, 0, 4, 256);
-    scene.background = new THREE.CanvasTexture(c);
+    return new THREE.CanvasTexture(c);
   }
+  scene.background = skyTexture([[0, '#4f9fea'], [0.55, '#a9d6ff'], [1, '#e6f3ff']]);
   scene.fog = new THREE.Fog(0xcde6fb, 120, 260);
 
-  scene.add(new THREE.HemisphereLight(0xe6f3ff, 0x3f5f45, 0.72));
+  const hemi = new THREE.HemisphereLight(0xe6f3ff, 0x3f5f45, 0.72);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffffff, 0.9);
   sun.position.set(-22, 48, 26);
   sun.castShadow = true;
@@ -1434,9 +1444,13 @@
     return m;
   }
 
+  // Scenery groups that each venue shows or hides (see VENUES below).
+  const env = {};
+  for (const k of ['fence', 'screens', 'banners', 'stands', 'poles', 'trees']) scene.add(env[k] = new THREE.Group());
+
   // Ground, apron, playing surface, kitchens.
-  flat(600, 600, 0x5d8f4a, -0.05);
-  flat(AREA.halfW * 2, AREA.halfL * 2, 0x1f6b57, 0);
+  const ground = flat(600, 600, 0x5d8f4a, -0.05);
+  const apron = flat(AREA.halfW * 2, AREA.halfL * 2, 0x1f6b57, 0);
   flat(COURT.halfW * 2, COURT.halfL * 2, 0x2a56c6, 0.01);
   flat(COURT.halfW * 2, COURT.kitchen, 0x58a6ea, 0.015, 0, COURT.kitchen / 2);
   flat(COURT.halfW * 2, COURT.kitchen, 0x58a6ea, 0.015, 0, -COURT.kitchen / 2);
@@ -1537,23 +1551,23 @@
       const side = new THREE.Mesh(new THREE.PlaneGeometry(len, FENCE_H), chain(len));
       side.rotation.y = Math.PI / 2;
       side.position.set(s * AREA.halfW, FENCE_H / 2, 0);
-      scene.add(side);
+      env.fence.add(side);
       for (let z = -AREA.halfL; z <= AREA.halfL; z += 8) {
         const p = new THREE.Mesh(poleGeo, poleMat);
         p.position.set(s * AREA.halfW, FENCE_H / 2, z);
         p.castShadow = true;
-        scene.add(p);
+        env.fence.add(p);
       }
       const rail = new THREE.Mesh(railGeo, poleMat);
       rail.scale.y = len;
       rail.rotation.x = Math.PI / 2;
       rail.position.set(s * AREA.halfW, FENCE_H, 0);
-      scene.add(rail);
+      env.fence.add(rail);
 
       const screen = new THREE.Mesh(new THREE.BoxGeometry(AREA.halfW * 2, 3.2, 0.15), stdMat(0x17463a, 0.9));
       screen.position.set(0, 1.6, s * AREA.halfL);
       screen.receiveShadow = true;
-      scene.add(screen);
+      env.screens.add(screen);
     }
   }
 
@@ -1599,7 +1613,7 @@
       // On the far-end fence behind the rivals, facing the camera.
       m.position.set(b.x * 8, 1.65, -AREA.halfL + 0.1);
       m.receiveShadow = true;
-      scene.add(m);
+      env.banners.add(m);
     });
   }
 
@@ -1614,13 +1628,15 @@
         tier.position.set(x, h / 2, 0);
         tier.receiveShadow = true;
         tier.castShadow = true;
-        scene.add(tier);
+        env.stands.add(tier);
         for (let z = -22.5; z <= 22.5; z += 2.1) {
           if (Math.random() < 0.3) continue;
           spots.push({ x: x + (Math.random() - 0.5) * 0.4, y: h, z: z + (Math.random() - 0.5) * 0.5, phase: Math.random() * 6.28 });
         }
       }
     }
+    // Shuffle, so showing only the first N (a smaller crowd) empties seats evenly.
+    for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [spots[i], spots[j]] = [spots[j], spots[i]]; }
     const shirts = [0xe94f4f, 0xf2b134, 0x3fa9ff, 0x2fbf71, 0xffffff, 0x8458d8, 0xff8a2b, 0x1f2a44, 0xf06ab0];
     const skins = [0xf1c7a3, 0x8d5a3b, 0xc68a5e, 0xffdcc2, 0x5a3825, 0xe0ac7e];
     const body = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.42, 0.5, 1.7, 8), stdMat(0xffffff, 0.8), spots.length);
@@ -1631,11 +1647,15 @@
       head.setColorAt(i, col.setHex(skins[(i * 7) % skins.length]));
     });
     body.castShadow = true;
-    scene.add(body, head);
+    env.stands.add(body, head);
     const m = new THREE.Matrix4();
     return {
+      shirts, skins,
+      // Fill only this share of the seats (1 = full stands).
+      setShare(f) { body.count = head.count = Math.round(spots.length * f); },
       update(t, excite = 0) {
-        spots.forEach((p, i) => {
+        for (let i = 0; i < body.count; i++) {
+          const p = spots[i];
           // Idle sway, plus jumping when your team wins a point.
           const bob = Math.max(0, Math.sin(t * 1.3 + p.phase)) * 0.06 +
             Math.min(1, excite) * Math.abs(Math.sin(t * 9 + p.phase * 3)) * 0.9;
@@ -1643,7 +1663,7 @@
           body.setMatrixAt(i, m);
           m.makeTranslation(p.x, p.y + 2.05 + bob, p.z);
           head.setMatrixAt(i, m);
-        });
+        }
         body.instanceMatrix.needsUpdate = true;
         head.instanceMatrix.needsUpdate = true;
       },
@@ -1657,11 +1677,11 @@
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 30, 10), poleMat);
       pole.position.set(sx * 19, 15, sz * 34);
       pole.castShadow = true;
-      scene.add(pole);
+      env.poles.add(pole);
       const lamp = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.6, 0.8), stdMat(0xe8edf5, 0.4));
       lamp.position.set(sx * 19, 30.5, sz * 34 - sz * 0.6);
       lamp.lookAt(0, 0, 0);
-      scene.add(lamp);
+      env.poles.add(lamp);
     }
     const n = 46;
     const leaves = new THREE.InstancedMesh(new THREE.ConeGeometry(4.2, 11, 8), stdMat(0x2f6b3c, 0.9), n);
@@ -1678,7 +1698,266 @@
       m.compose(p.clone().setY(8 * k), q, s);
       leaves.setMatrixAt(i, m);
     }
-    scene.add(leaves, trunks);
+    env.trees.add(leaves, trunks);
+  }
+
+  /* =====================================================================
+     VENUES  (same court everywhere; only the surroundings change)
+     The park is the scene built above. Each other venue's own props are
+     built the first time it is picked; the shared groups in `env` are
+     just shown or hidden. Everything is flat-coloured low poly, with
+     repeated props drawn as one InstancedMesh, so phones stay smooth.
+     ===================================================================== */
+  const flatMat = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0, flatShading: true });
+  const seeded = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };   // repeatable "random"
+  function canvasTex(w, h, draw) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = 4;
+    return t;
+  }
+  const repeated = (tex, x, y) => { const t = tex.clone(); t.needsUpdate = true; t.repeat.set(x, y); return t; };
+  // One InstancedMesh from a list of { x, y, z, s | sx sy sz, ry }.
+  function instanced(geo, mat, items, castShadow = false) {
+    const im = new THREE.InstancedMesh(geo, mat, items.length);
+    const o = new THREE.Object3D();
+    items.forEach((it, i) => {
+      o.position.set(it.x, it.y || 0, it.z);
+      o.rotation.set(0, it.ry || 0, 0);
+      o.scale.set(it.sx ?? it.s ?? 1, it.sy ?? it.s ?? 1, it.sz ?? it.s ?? 1);
+      o.updateMatrix();
+      im.setMatrixAt(i, o.matrix);
+    });
+    im.castShadow = castShadow;
+    return im;
+  }
+  const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return m; };
+  // A sign with big display-font text, redrawn once the font has loaded.
+  function signTex(text, bg, fg, w = 1024, h = 160) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const t = new THREE.CanvasTexture(c);
+    t.anisotropy = 4;
+    const draw = () => {
+      const g = c.getContext('2d');
+      g.fillStyle = bg; g.fillRect(0, 0, w, h);
+      g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = `400 ${h * 0.62}px "Lilita One", "Arial Black", sans-serif`;
+      g.fillText(text, w / 2, h / 2 + h * 0.03);
+      t.needsUpdate = true;
+    };
+    draw();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+    return t;
+  }
+
+  // Wood floor planks, shared by the gym's floor and court surround.
+  const woodTex = () => canvasTex(256, 256, (g, w, h) => {
+    const tones = ['#c8925a', '#bd8650', '#d19c63', '#c48c55', '#b9824c', '#cc965e', '#c08a52', '#d4a067'];
+    for (let r = 0; r < 8; r++) {
+      g.fillStyle = tones[r]; g.fillRect(0, r * 32, w, 32);
+      g.fillStyle = 'rgba(70, 40, 15, 0.35)'; g.fillRect(0, r * 32, w, 1.5);
+      const jx = (r * 97) % w;   // staggered plank ends
+      g.fillRect(jx, r * 32, 1.5, 32);
+    }
+  });
+
+  const RL = 56, RW = 44, RH = 34;   // gym room: half length, half width, height
+  const YL = 70, YW = 44;            // backyard fence: half length, half width
+
+  const VENUES = {
+    park: {
+      name: 'Park',
+      show: ['fence', 'screens', 'banners', 'stands', 'poles', 'trees'],
+      sky: [[0, '#4f9fea'], [0.55, '#a9d6ff'], [1, '#e6f3ff']], fog: [0xcde6fb, 120, 260],
+      hemi: [0xe6f3ff, 0x3f5f45, 0.72], sun: [0xffffff, 0.9],
+    },
+
+    gym: {
+      name: 'Gym',
+      show: ['screens', 'banners', 'stands'],
+      crowd: 0.5,   // half-full bleachers
+      bg: 0x2a3140, fog: [0x2a3140, 200, 520],
+      hemi: [0xfff6e8, 0x8a6a48, 0.85], sun: [0xfff8ee, 0.7],
+      floor() {
+        const t = woodTex();
+        return {
+          ground: new THREE.MeshStandardMaterial({ map: repeated(t, 120, 120), color: 0xd8c6b0, roughness: 0.6 }),
+          apron: new THREE.MeshStandardMaterial({ map: repeated(t, AREA.halfW * 2 / 5, AREA.halfL * 2 / 5), roughness: 0.6 }),
+        };
+      },
+      build() {
+        const g = new THREE.Group();
+        // The room: a box seen from inside only (BackSide). When the menu
+        // camera circles outside it, the near walls simply vanish.
+        const wall = canvasTex(16, 256, (c, w, h) => {
+          c.fillStyle = '#b9c3d0'; c.fillRect(0, 0, w, h);
+          c.fillStyle = '#13294b'; c.fillRect(0, h * 0.70, w, h * 0.05);
+          c.fillStyle = '#dcf54a'; c.fillRect(0, h * 0.75, w, h * 0.012);
+          c.fillStyle = '#56657c'; c.fillRect(0, h * 0.78, w, h * 0.22);
+        });
+        const side = (map) => new THREE.MeshStandardMaterial({ map, side: THREE.BackSide, roughness: 0.9 });
+        const room = new THREE.Mesh(new THREE.BoxGeometry(RW * 2, RH, RL * 2), [
+          side(wall), side(wall),
+          new THREE.MeshStandardMaterial({ color: 0x5b6270, side: THREE.BackSide, roughness: 0.9 }),   // ceiling
+          new THREE.MeshBasicMaterial({ visible: false }),                                              // floor: the wood ground shows instead
+          side(wall), side(wall),
+        ]);
+        room.position.y = RH / 2 - 0.05;
+        g.add(room);
+        // Ceiling light panels.
+        const lights = [];
+        for (const x of [-20, 0, 20]) for (const z of [-33, -11, 11, 33]) lights.push({ x, y: RH - 0.8, z });
+        g.add(instanced(new THREE.BoxGeometry(7, 0.4, 3), new THREE.MeshBasicMaterial({ color: 0xfffbea }), lights));
+        // Basketball hoops on both end walls.
+        const white = stdMat(0xffffff, 0.5), grey = stdMat(0x59606c, 0.5), orange = stdMat(0xff6a1f, 0.5);
+        for (const s of [-1, 1]) {
+          const z = s * (RL - 3);
+          g.add(box(6, 3.6, 0.2, white, 0, 11.8, z));
+          g.add(box(0.4, 0.4, 3, grey, 0, 13, s * (RL - 1.5)));
+          const rim = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.07, 6, 16), orange);
+          rim.rotation.x = Math.PI / 2;
+          rim.position.set(0, 10, z - s * 0.95);
+          g.add(rim);
+        }
+        // Rec centre sign high on the far wall.
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(32, 5), new THREE.MeshStandardMaterial({ map: signTex('HCW REC CENTER', '#13294b', '#dcf54a'), roughness: 0.8 }));
+        sign.position.set(0, 23, -RL + 0.2);
+        g.add(sign);
+        return g;
+      },
+    },
+
+
+    backyard: {
+      name: 'Backyard',
+      show: ['trees'],
+      sky: [[0, '#4f9fea'], [0.55, '#a9d6ff'], [1, '#e6f3ff']], fog: [0xcde6fb, 120, 260],
+      hemi: [0xe6f3ff, 0x3f5f45, 0.75], sun: [0xffffff, 0.92],
+      floor() {
+        return { ground: stdMat(0x6aa452, 0.95), apron: stdMat(0x767c83, 0.9) };   // lawn and a concrete pad
+      },
+      build() {
+        const g = new THREE.Group();
+        // Wooden privacy fence round the yard.
+        const boards = canvasTex(128, 64, (c, w, h) => {
+          for (let i = 0; i < 8; i++) {
+            c.fillStyle = i % 2 ? '#a8713f' : '#b47b47'; c.fillRect(i * 16, 0, 16, h);
+            c.fillStyle = 'rgba(50, 28, 10, 0.55)'; c.fillRect(i * 16, 0, 1.5, h);
+          }
+        });
+        const FH = 6.5;
+        for (const [len, x, z, ry] of [[YW * 2, 0, -YL, 0], [YW * 2, 0, YL, 0], [YL * 2, -YW, 0, Math.PI / 2], [YL * 2, YW, 0, Math.PI / 2]]) {
+          const f = new THREE.Mesh(new THREE.BoxGeometry(len, FH, 0.3), new THREE.MeshStandardMaterial({ map: repeated(boards, len / 4.4, 1), roughness: 0.9 }));
+          f.position.set(x, FH / 2, z);
+          f.rotation.y = ry;
+          f.receiveShadow = true;
+          g.add(f);
+        }
+        // House behind the far end: walls, gable roof, windows, sliding door, chimney.
+        const HZ = -61, HD = 13, HW = 54, HH = 15;
+        g.add(box(HW, HH, HD, stdMat(0xe9dcc4, 0.9), 0, HH / 2, HZ));
+        const shape = new THREE.Shape([new THREE.Vector2(-HD / 2 - 1.5, 0), new THREE.Vector2(HD / 2 + 1.5, 0), new THREE.Vector2(0, 6.5)]);
+        const roofGeo = new THREE.ExtrudeGeometry(shape, { depth: HW + 3, bevelEnabled: false });
+        roofGeo.rotateY(Math.PI / 2);
+        roofGeo.translate(-(HW + 3) / 2, HH, HZ);
+        g.add(new THREE.Mesh(roofGeo, flatMat(0x7a3b2e)));
+        g.add(box(3, 7, 3, flatMat(0x9a4b3a), 16, HH + 4, HZ - 1));
+        const front = HZ + HD / 2 + 0.1;
+        const glass = stdMat(0x2c4766, 0.3);
+        g.add(instanced(new THREE.BoxGeometry(5, 4, 0.3), glass, [-20, -11, 11, 20].map((x) => ({ x, y: 9.5, z: front }))));
+        g.add(box(8, 7.5, 0.3, stdMat(0x3a5576, 0.3), 0, 3.8, front));
+        // Patio: slab, kettle grill, table with an umbrella and chairs.
+        const slab = new THREE.Mesh(new THREE.PlaneGeometry(40, 9), stdMat(0xbdb4a6, 0.9));
+        slab.rotation.x = -Math.PI / 2;
+        slab.position.set(0, 0.03, front + 4.5);
+        slab.receiveShadow = true;
+        g.add(slab);
+        const black = stdMat(0x1d1f24, 0.5);
+        const bowl = new THREE.Mesh(new THREE.SphereGeometry(1.1, 12, 8), black);
+        bowl.scale.y = 0.85;
+        bowl.position.set(15, 3.1, front + 5);
+        g.add(bowl);
+        for (let i = 0; i < 3; i++) {
+          const a = (i / 3) * Math.PI * 2;
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.6, 5), black);
+          leg.position.set(15 + Math.cos(a) * 0.7, 1.3, front + 5 + Math.sin(a) * 0.7);
+          g.add(leg);
+        }
+        const tx = -15, tz = front + 5;
+        g.add(box(0.2, 7, 0.2, stdMat(0xdddddd, 0.5), tx, 3.5, tz));
+        const table = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.2, 14), stdMat(0xf2f2f2, 0.6));
+        table.position.set(tx, 2.5, tz);
+        g.add(table);
+        const umbrella = new THREE.Mesh(new THREE.ConeGeometry(5, 1.8, 8), flatMat(0xd9483b));
+        umbrella.position.set(tx, 7.6, tz);
+        g.add(umbrella);
+        g.add(instanced(new THREE.BoxGeometry(1.4, 1.8, 1.4), stdMat(0x2f6f8f, 0.7),
+          [[-3, 0], [3, 0], [0, 3]].map(([dx, dz]) => ({ x: tx + dx, y: 0.9, z: tz + dz }))));
+        // Shrubs along the side fences and two shade trees by the house.
+        const shrubs = [];
+        for (const s of [-1, 1]) for (let z = -40; z <= 60; z += 9) shrubs.push({ x: s * (YW - 2.5), y: 1.3, z: z + seeded(z + s) * 3, s: 0.8 + seeded(z * s + 7) * 0.5, ry: z });
+        g.add(instanced(new THREE.IcosahedronGeometry(1.8, 0), flatMat(0x3f7d3a), shrubs));
+        const treeSpots = [{ x: -35, z: -50 }, { x: 35, z: -48 }];
+        g.add(instanced(new THREE.CylinderGeometry(0.8, 1.1, 8, 7), flatMat(0x5b4030), treeSpots.map((p) => ({ ...p, y: 4 })), true));
+        g.add(instanced(new THREE.IcosahedronGeometry(7, 1), flatMat(0x3d7a3a), treeSpots.map((p) => ({ ...p, y: 12.5 })), true));
+        // Seven friends standing around watching: along both sides of the pad and on the patio.
+        const fans = [[-21, 14], [-22.5, -2], [-20.5, -17], [21.5, 10], [22, -9], [-8, front + 8], [5, front + 9]]
+          .map(([x, z], i) => ({ x, z, phase: i * 1.7 }));
+        const body = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.75, 0.9, 3.1, 8), stdMat(0xffffff, 0.8), fans.length);
+        const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.62, 10, 8), stdMat(0xffffff, 0.8), fans.length);
+        const col = new THREE.Color();
+        fans.forEach((p, i) => {
+          body.setColorAt(i, col.setHex(crowd.shirts[(i * 4 + 2) % crowd.shirts.length]));
+          head.setColorAt(i, col.setHex(crowd.skins[(i * 5) % crowd.skins.length]));
+        });
+        body.castShadow = head.castShadow = true;
+        g.add(body, head);
+        const m = new THREE.Matrix4();
+        this.update = (t, excite = 0) => {
+          fans.forEach((p, i) => {
+            // A gentle sway, and a jump when your team wins a point.
+            const bob = Math.max(0, Math.sin(t * 1.1 + p.phase)) * 0.05 +
+              Math.min(1, excite) * Math.abs(Math.sin(t * 8 + p.phase * 3)) * 1.1;
+            m.makeTranslation(p.x, 1.55 + bob, p.z);
+            body.setMatrixAt(i, m);
+            m.makeTranslation(p.x, 3.7 + bob, p.z);
+            head.setMatrixAt(i, m);
+          });
+          body.instanceMatrix.needsUpdate = true;
+          head.instanceMatrix.needsUpdate = true;
+        };
+        this.update(0);
+        return g;
+      },
+    },
+  };
+  const parkFloor = { ground: ground.material, apron: apron.material };
+  let venueNow = null;
+  function applyVenue(key) {
+    const v = VENUES[key] || VENUES.park;
+    if (v === venueNow) return;
+    venueNow = v;
+    if (v.build && !v.group) scene.add(v.group = v.build());
+    for (const o of Object.values(VENUES)) if (o.group) o.group.visible = o === v;
+    for (const k in env) env[k].visible = v.show.includes(k);
+    crowd.setShare(v.crowd ?? 1);
+    if (!v.bgTex) v.bgTex = v.sky ? skyTexture(v.sky) : new THREE.Color(v.bg);
+    scene.background = v.bgTex;
+    scene.fog.color.setHex(v.fog[0]);
+    scene.fog.near = v.fog[1];
+    scene.fog.far = v.fog[2];
+    hemi.color.setHex(v.hemi[0]);
+    hemi.groundColor.setHex(v.hemi[1]);
+    hemi.intensity = v.hemi[2];
+    sun.color.setHex(v.sun[0]);
+    sun.intensity = v.sun[1];
+    if (!v.mats) v.mats = v.floor ? v.floor() : parkFloor;
+    ground.material = v.mats.ground;
+    apron.material = v.mats.apron;
   }
 
   /* =====================================================================
@@ -1692,7 +1971,9 @@
   const settings = Object.assign({ auto: isTouch, diff: 'normal', scoring: 'classic', sound: true }, store.get('kc-settings', {}));
   settings.scoring = 'classic';   // the game only uses classic (side-out) scoring
   if (settings.mode !== 'ultimate') settings.mode = 'classic';   // Classic: only you use an ultimate
+  if (!VENUES[settings.venue]) settings.venue = 'park';
   const saveSettings = () => store.set('kc-settings', settings);
+  applyVenue(settings.venue);
 
   /* =====================================================================
      SOUND  (all synthesised with Web Audio; nothing to download)
@@ -3079,7 +3360,7 @@
       classic: 'Only the serving team scores. Both partners serve before a side out.',
       rally: 'Every rally scores a point. The serve changes hands after each lost rally.',
     };
-    const label = () => `${settings.diff.charAt(0).toUpperCase() + settings.diff.slice(1)} rivals · ${settings.mode === 'ultimate' ? 'Ultimate' : 'Classic'} mode`;
+    const label = () => `${settings.diff.charAt(0).toUpperCase() + settings.diff.slice(1)} rivals · ${settings.mode === 'ultimate' ? 'Ultimate' : 'Classic'} mode · ${VENUES[settings.venue].name}`;
 
     function seg(id, key) {
       const box = document.getElementById(id);
@@ -3096,6 +3377,9 @@
     }
     seg('diffSeg', 'diff');
     seg('modeSeg', 'mode');
+    seg('venueSeg', 'venue');
+    // The demo match behind the menu shows the chosen court straight away.
+    document.getElementById('venueSeg').addEventListener('click', () => applyVenue(settings.venue));
     const MODE_NOTE = {
       classic: 'Only you can use your ultimate.',
       ultimate: 'All four players can use their ultimates, so the rivals and your partner will too.',
@@ -3116,12 +3400,12 @@
     syncAuto();
 
     const pickEl = document.getElementById('pick');
-    const PICK_TIME = 10, PICK_HURRY = 5;   // seconds: hurry warning after 5, random pick at 10
+    const PICK_TIME = 15, PICK_HURRY = 10;   // seconds: hurry warning after 10, random pick at 15
     let pickTimer = null;
     const introEl = document.getElementById('intro');
     let introTimers = [], introAnims = [];
     const stopIntro = () => {
-      introTimers.forEach(clearTimeout); introTimers = [];
+      introTimers.forEach((t) => { clearTimeout(t); clearInterval(t); }); introTimers = [];
       introAnims.forEach((a) => a.cancel()); introAnims = [];
     };
     const hex = (n) => '#' + n.toString(16).padStart(6, '0');
@@ -3157,7 +3441,8 @@
     const hideAll = () => { stopPick(); stopIntro(); menuEl.hidden = true; pauseEl.hidden = true; overEl.hidden = true; pickEl.hidden = true; introEl.hidden = true; document.body.classList.remove('in-intro'); };
 
     // Before each match: show all four players, then flip a coin for first serve.
-    const INTRO = { names: 1300, flip: 1700, hold: 1300 };   // ms for each stage
+    // ms: the whole screen lasts `total` unless skipped; the coin flips after `names`.
+    const INTRO = { total: 15000, names: 4000, flip: 2000 };
     function showIntro(first, note) {
       const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
       const card = (p, k) => {
@@ -3181,6 +3466,12 @@
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
       const endX = 6 * 360 + (first === 'b' ? 180 : 0);   // six flips, landing on the winner's face
       const later = (ms, fn) => introTimers.push(setTimeout(fn, ms));
+      // Count down on the Skip button so a long wait never looks stuck.
+      const skipBtn = document.getElementById('introSkip'), endAt = performance.now() + INTRO.total;
+      const tick = () => { skipBtn.textContent = `Skip (Enter) · starts in ${Math.max(1, Math.ceil((endAt - performance.now()) / 1000))}`; };
+      tick();
+      introTimers.push(setInterval(tick, 250));
+      later(INTRO.total, endIntro);
       later(still ? 300 : INTRO.names, () => {
         const ms = still ? 1 : INTRO.flip;
         introAnims.push(coin.animate([
@@ -3199,7 +3490,6 @@
         later(ms, () => {
           res.textContent = (first === 'a' ? 'Orange team' : 'Violet team') + ' serves first!';
           res.classList.add('show', first);
-          later(INTRO.hold, endIntro);
         });
       });
     }
@@ -4325,7 +4615,8 @@
     ufx.update(cards.frozen() ? 0 : dt, time);
     drawBars();
     hud.zone();
-    if (perf.level < 2) crowd.update(time, state.excite);
+    if (perf.level < 2 && env.stands.visible) crowd.update(time, state.excite);
+    if (perf.level < 2 && venueNow.update) venueNow.update(time, state.excite);   // e.g. the backyard's standing fans
     if (state.demo) orbit += dt * 0.07;
 
     cameraGoal();

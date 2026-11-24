@@ -1,0 +1,907 @@
+<meta charset="utf-8">
+<title>Ultimate Pickleball Clash Courts</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Rubik:wght@400;500;600&display=swap">
+<style>
+  :root {
+    /* Layout: full-bleed 3D court; title chip and venue card top-left, one control dock floating at the bottom */
+    --ink: #0e1830;
+    --panel: rgba(14, 24, 48, 0.86);
+    --line: rgba(255, 255, 255, 0.12);
+    --paper: #f2f5ff;
+    --muted: #a8b4d6;
+    --ball: #dcf54a;
+    --font-display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+    --font-body: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--font-body);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  [hidden] { display: none !important; }
+
+  #stage { position: fixed; inset: 0; touch-action: none; }
+  #c { display: block; width: 100%; height: 100%; cursor: grab; }
+  #c.dragging { cursor: grabbing; }
+
+  .chip {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .title {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 14px);
+    left: max(16px, env(safe-area-inset-left, 0px));
+    padding: 10px 14px 11px;
+    pointer-events: none;
+  }
+  .title .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .title h1 { margin: 2px 0 0; font: 400 26px/1 var(--font-display); letter-spacing: 0.02em; }
+  .title h1 span { color: var(--ball); }
+
+  .venue {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 86px);
+    left: max(16px, env(safe-area-inset-left, 0px));
+    width: min(300px, calc(100vw - 32px));
+    box-sizing: border-box;
+    padding: 10px 14px 12px;
+    border-left: 4px solid var(--ball);
+    pointer-events: none;
+  }
+  .venue h2 { margin: 0 0 4px; font: 400 22px var(--font-display); letter-spacing: 0.03em; color: var(--ball); }
+  .venue p { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
+  .venue .cost { margin-top: 8px; font-size: 11.5px; color: var(--paper); font-variant-numeric: tabular-nums; }
+
+  .hint {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right, 0px));
+    top: calc(env(safe-area-inset-top, 0px) + 18px);
+    font-size: 12px;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.75);
+    padding: 6px 10px;
+    border-radius: 8px;
+    pointer-events: none;
+  }
+
+  .dock {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 12px 16px;
+    padding: 10px 12px 12px;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+    border-radius: 16px;
+  }
+  .group { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .group > span { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); padding-left: 2px; }
+  .seg { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, 0.07); }
+  .seg button, .toggle {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: 500 14px var(--font-body);
+    padding: 7px 11px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .seg button:hover, .toggle:hover { color: var(--paper); }
+  .seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); }
+  .toggle { background: rgba(255, 255, 255, 0.07); padding: 10px 12px; border-radius: 10px; }
+  .toggle[aria-pressed="true"] { color: var(--ink); background: var(--ball); }
+  button:focus-visible { outline: 2px solid var(--ball); outline-offset: 2px; }
+
+  @media (max-width: 640px) {
+    .title h1 { font-size: 21px; }
+    .hint { display: none; }
+    .venue { top: calc(env(safe-area-inset-top, 0px) + 72px); padding: 6px 10px 8px; }
+    .venue h2 { font-size: 17px; margin: 0; }
+    .venue p { display: none; }
+    .venue .cost { margin-top: 2px; }
+    .dock { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); transform: none; width: auto; max-width: none; gap: 6px; padding: 8px; }
+    .group { width: 100%; }
+    .group > span { display: none; }
+    .seg { min-width: 0; }
+    .seg button { flex: 1; min-width: 0; padding: 7px 4px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+    .toggle { width: 100%; padding: 8px; }
+  }
+</style>
+
+<div id="stage"><canvas id="c" aria-label="3D pickleball court and its surroundings"></canvas></div>
+
+<div class="title chip">
+  <div class="eyebrow">Court viewer</div>
+  <h1>ULTIMATE PICKLEBALL <span>CLASH</span></h1>
+</div>
+<div class="hint">Drag to look around · scroll or pinch to zoom · 1–3 court</div>
+
+<div class="venue chip" aria-live="polite">
+  <h2 id="venueName">Park</h2>
+  <p id="venueDesc"></p>
+  <div class="cost" id="venueCost"></div>
+</div>
+
+<div class="dock chip" role="toolbar" aria-label="Court viewer controls">
+  <div class="group">
+    <span id="courtLabel">Court</span>
+    <div class="seg" role="group" aria-labelledby="courtLabel" id="courtSeg">
+      <button type="button" data-v="park">Park</button>
+      <button type="button" data-v="gym">Gym</button>
+      <button type="button" data-v="backyard">Backyard</button>
+    </div>
+  </div>
+  <div class="group">
+    <span id="viewLabel">View</span>
+    <div class="seg" role="group" aria-labelledby="viewLabel" id="viewSeg">
+      <button type="button" data-v="player">Player</button>
+      <button type="button" data-v="overview">Overview</button>
+      <button type="button" data-v="side">Side</button>
+    </div>
+  </div>
+  <div class="group">
+    <span id="spinLabel">Camera</span>
+    <button type="button" class="toggle" id="spinBtn" aria-labelledby="spinLabel" aria-pressed="false">Still</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  /* =====================================================================
+     COURT  (feet; net on z = 0, your team plays the +Z half)
+     Copied from index.html (COURT through VENUES); keep the two in sync.
+     ===================================================================== */
+  const COURT = {
+    halfW: 10,        // 20 ft wide
+    halfL: 22,        // 44 ft long
+    kitchen: 7,       // non-volley zone depth from the net
+    line: 2 / 12,     // 2-inch lines
+    netCenter: 34 / 12,
+    netPost: 36 / 12,
+    postX: 11,        // posts stand 1 ft outside each sideline
+  };
+  const AREA = { halfW: 17, halfL: 32 }; // fenced play area
+
+  const isTouch = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
+
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.75 : 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  // A vertical sky gradient, top to horizon: [[stop, colour], ...].
+  function skyTexture(stops) {
+    const c = document.createElement('canvas');
+    c.width = 4; c.height = 256;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    stops.forEach(([at, col]) => grad.addColorStop(at, col));
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 4, 256);
+    return new THREE.CanvasTexture(c);
+  }
+  scene.background = skyTexture([[0, '#4f9fea'], [0.55, '#a9d6ff'], [1, '#e6f3ff']]);
+  scene.fog = new THREE.Fog(0xcde6fb, 120, 260);
+
+  const hemi = new THREE.HemisphereLight(0xe6f3ff, 0x3f5f45, 0.72);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(-22, 48, 26);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
+  Object.assign(sun.shadow.camera, { left: -38, right: 38, top: 40, bottom: -40, near: 1, far: 140 });
+  sun.shadow.bias = -0.0005;
+  scene.add(sun);
+  scene.add(sun.target);
+
+  const stdMat = (color, roughness = 0.85) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
+
+  function flat(w, l, color, y, x = 0, z = 0) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), stdMat(color, 0.92));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, y, z);
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
+  // Scenery groups that each venue shows or hides (see VENUES below).
+  const env = {};
+  for (const k of ['fence', 'screens', 'banners', 'stands', 'poles', 'trees']) scene.add(env[k] = new THREE.Group());
+
+  // Ground, apron, playing surface, kitchens.
+  const ground = flat(600, 600, 0x5d8f4a, -0.05);
+  const apron = flat(AREA.halfW * 2, AREA.halfL * 2, 0x1f6b57, 0);
+  flat(COURT.halfW * 2, COURT.halfL * 2, 0x2a56c6, 0.01);
+  flat(COURT.halfW * 2, COURT.kitchen, 0x58a6ea, 0.015, 0, COURT.kitchen / 2);
+  flat(COURT.halfW * 2, COURT.kitchen, 0x58a6ea, 0.015, 0, -COURT.kitchen / 2);
+
+  // Lines (2 in wide). Lines count as in, so they sit on the court's edges.
+  {
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
+    const L = COURT.line, W = COURT.halfW, H = COURT.halfL, K = COURT.kitchen;
+    const strip = (w, l, x, z) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), lineMat);
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(x, 0.02, z);
+      m.receiveShadow = true;
+      scene.add(m);
+    };
+    for (const s of [-1, 1]) {
+      strip(L, H * 2, s * (W - L / 2), 0);          // sidelines
+      strip(W * 2, L, 0, s * (H - L / 2));          // baselines
+      strip(W * 2, L, 0, s * (K - L / 2));          // kitchen (non-volley) lines
+      strip(L, H - K, 0, s * (K + (H - K) / 2));    // centrelines, kitchen line to baseline
+    }
+  }
+
+  // Net: sagging mesh, white tape along the top, centre strap, two posts.
+  {
+    const netH = (x) => COURT.netCenter + (COURT.netPost - COURT.netCenter) * Math.pow(x / COURT.postX, 2);
+    const geo = new THREE.PlaneGeometry(COURT.postX * 2, 1, 66, 1);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      pos.setY(i, pos.getY(i) > 0 ? netH(x) : 0.15);
+    }
+    geo.computeVertexNormals();
+    const tc = document.createElement('canvas');
+    tc.width = 64; tc.height = 64;
+    const g = tc.getContext('2d');
+    g.strokeStyle = 'rgba(20, 22, 30, 0.95)';
+    g.lineWidth = 6;
+    g.strokeRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(tc);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(COURT.postX * 2 / 0.25, COURT.netCenter / 0.25);
+    tex.anisotropy = 4;
+    const net = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      map: tex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.9,
+    }));
+    net.castShadow = true;
+    scene.add(net);
+
+    const top = [];
+    for (let i = 0; i <= 24; i++) {
+      const x = -COURT.postX + (i / 24) * COURT.postX * 2;
+      top.push(new THREE.Vector3(x, netH(x), 0));
+    }
+    const tape = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(top), 48, 0.07, 6, false), stdMat(0xffffff, 0.6));
+    tape.castShadow = true;
+    scene.add(tape);
+
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.17, COURT.netCenter, 0.05), stdMat(0xffffff, 0.6));
+    strap.position.y = COURT.netCenter / 2;
+    scene.add(strap);
+
+    const postGeo = new THREE.CylinderGeometry(0.12, 0.14, COURT.netPost + 0.15, 12);
+    for (const s of [-1, 1]) {
+      const post = new THREE.Mesh(postGeo, stdMat(0x23262e, 0.5));
+      post.position.set(s * COURT.postX, (COURT.netPost + 0.15) / 2, 0);
+      post.castShadow = true;
+      scene.add(post);
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.12, 16), stdMat(0x23262e, 0.5));
+      foot.position.set(s * COURT.postX, 0.06, 0);
+      scene.add(foot);
+    }
+  }
+
+  // Fences: tall chain-link on the sides, low windscreens behind the baselines
+  // so the camera behind your baseline sees over them.
+  {
+    const lc = document.createElement('canvas');
+    lc.width = 32; lc.height = 32;
+    const g = lc.getContext('2d');
+    g.strokeStyle = 'rgba(40, 52, 58, 0.9)';
+    g.lineWidth = 2.2;
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(32, 32); g.moveTo(32, 0); g.lineTo(0, 32); g.stroke();
+    const tex = new THREE.CanvasTexture(lc);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    const FENCE_H = 10;
+    const chain = (len) => {
+      const t = tex.clone();
+      t.needsUpdate = true;
+      t.repeat.set(len / 1.4, FENCE_H / 1.4);
+      return new THREE.MeshStandardMaterial({ map: t, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.8 });
+    };
+    const poleMat = stdMat(0x2b3a33, 0.5);
+    const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, FENCE_H, 8);
+    const railGeo = new THREE.CylinderGeometry(0.08, 0.08, 1, 8);
+    for (const s of [-1, 1]) {
+      const len = AREA.halfL * 2;
+      const side = new THREE.Mesh(new THREE.PlaneGeometry(len, FENCE_H), chain(len));
+      side.rotation.y = Math.PI / 2;
+      side.position.set(s * AREA.halfW, FENCE_H / 2, 0);
+      env.fence.add(side);
+      for (let z = -AREA.halfL; z <= AREA.halfL; z += 8) {
+        const p = new THREE.Mesh(poleGeo, poleMat);
+        p.position.set(s * AREA.halfW, FENCE_H / 2, z);
+        p.castShadow = true;
+        env.fence.add(p);
+      }
+      const rail = new THREE.Mesh(railGeo, poleMat);
+      rail.scale.y = len;
+      rail.rotation.x = Math.PI / 2;
+      rail.position.set(s * AREA.halfW, FENCE_H, 0);
+      env.fence.add(rail);
+
+      const screen = new THREE.Mesh(new THREE.BoxGeometry(AREA.halfW * 2, 3.2, 0.15), stdMat(0x17463a, 0.9));
+      screen.position.set(0, 1.6, s * AREA.halfL);
+      screen.receiveShadow = true;
+      env.screens.add(screen);
+    }
+  }
+
+  // Sponsor banners tied to the far-end fence, facing the court.
+  {
+    const BANNERS = [
+      { text: 'SD Pickleball', bg: '#13294b', fg: '#dcf54a', edge: '#dcf54a', x: -1 },
+      { text: 'HCW Rec Club', bg: '#ffffff', fg: '#c8102e', edge: '#1f7a3a', x: 1 },
+    ];
+    const W = 14, H = 2.6;   // feet
+    BANNERS.forEach((b) => {
+      const c = document.createElement('canvas');
+      c.width = 1024; c.height = Math.round(1024 * H / W);
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = 4;
+      const draw = () => {
+        const g = c.getContext('2d'), w = c.width, h = c.height;
+        g.fillStyle = b.bg; g.fillRect(0, 0, w, h);
+        g.strokeStyle = b.edge; g.lineWidth = 14; g.strokeRect(12, 12, w - 24, h - 24);
+        // grommets in the corners and along the top and bottom
+        g.fillStyle = '#c9ced8';
+        for (const gx of [34, w / 2, w - 34]) for (const gy of [34, h - 34]) { g.beginPath(); g.arc(gx, gy, 8, 0, Math.PI * 2); g.fill(); }
+        // a pickleball beside the name
+        const r = h * 0.24, bx = w * 0.13, by = h / 2;
+        g.fillStyle = '#dcf54a'; g.beginPath(); g.arc(bx, by, r, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 3; g.stroke();
+        g.fillStyle = 'rgba(0,0,0,0.35)';
+        for (const [dx, dy] of [[0, 0], [-0.45, -0.35], [0.45, -0.35], [-0.45, 0.4], [0.45, 0.4], [0, -0.7], [0, 0.72]]) {
+          g.beginPath(); g.arc(bx + dx * r, by + dy * r, r * 0.11, 0, Math.PI * 2); g.fill();
+        }
+        g.fillStyle = b.fg;
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        let size = h * 0.56;
+        const font = (s) => `400 ${s}px "Lilita One", "Arial Black", sans-serif`;
+        g.font = font(size);
+        while (g.measureText(b.text.toUpperCase()).width > w * 0.66 && size > 20) { size -= 4; g.font = font(size); }
+        g.fillText(b.text.toUpperCase(), w * 0.58, h / 2 + size * 0.04);
+        tex.needsUpdate = true;
+      };
+      draw();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);   // redraw once the display font loads
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, side: THREE.DoubleSide }));
+      // On the far-end fence behind the rivals, facing the camera.
+      m.position.set(b.x * 8, 1.65, -AREA.halfL + 0.1);
+      m.receiveShadow = true;
+      env.banners.add(m);
+    });
+  }
+
+  // Bleachers with a crowd, both long sides.
+  const crowd = (() => {
+    const seatMat = stdMat(0x9aa4b5, 0.7);
+    const spots = [];
+    for (const s of [-1, 1]) {
+      for (let row = 0; row < 4; row++) {
+        const x = s * (21 + row * 2.4), h = 1.1 + row * 1.15;
+        const tier = new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 48), seatMat);
+        tier.position.set(x, h / 2, 0);
+        tier.receiveShadow = true;
+        tier.castShadow = true;
+        env.stands.add(tier);
+        for (let z = -22.5; z <= 22.5; z += 2.1) {
+          if (Math.random() < 0.3) continue;
+          spots.push({ x: x + (Math.random() - 0.5) * 0.4, y: h, z: z + (Math.random() - 0.5) * 0.5, phase: Math.random() * 6.28 });
+        }
+      }
+    }
+    // Shuffle, so showing only the first N (a smaller crowd) empties seats evenly.
+    for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [spots[i], spots[j]] = [spots[j], spots[i]]; }
+    const shirts = [0xe94f4f, 0xf2b134, 0x3fa9ff, 0x2fbf71, 0xffffff, 0x8458d8, 0xff8a2b, 0x1f2a44, 0xf06ab0];
+    const skins = [0xf1c7a3, 0x8d5a3b, 0xc68a5e, 0xffdcc2, 0x5a3825, 0xe0ac7e];
+    const body = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.42, 0.5, 1.7, 8), stdMat(0xffffff, 0.8), spots.length);
+    const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.36, 10, 8), stdMat(0xffffff, 0.8), spots.length);
+    const col = new THREE.Color();
+    spots.forEach((p, i) => {
+      body.setColorAt(i, col.setHex(shirts[i % shirts.length]));
+      head.setColorAt(i, col.setHex(skins[(i * 7) % skins.length]));
+    });
+    body.castShadow = true;
+    env.stands.add(body, head);
+    const m = new THREE.Matrix4();
+    return {
+      shirts, skins,
+      // Fill only this share of the seats (1 = full stands).
+      setShare(f) { body.count = head.count = Math.round(spots.length * f); },
+      update(t, excite = 0) {
+        for (let i = 0; i < body.count; i++) {
+          const p = spots[i];
+          // Idle sway, plus jumping when your team wins a point.
+          const bob = Math.max(0, Math.sin(t * 1.3 + p.phase)) * 0.06 +
+            Math.min(1, excite) * Math.abs(Math.sin(t * 9 + p.phase * 3)) * 0.9;
+          m.makeTranslation(p.x, p.y + 0.85 + bob, p.z);
+          body.setMatrixAt(i, m);
+          m.makeTranslation(p.x, p.y + 2.05 + bob, p.z);
+          head.setMatrixAt(i, m);
+        }
+        body.instanceMatrix.needsUpdate = true;
+        head.instanceMatrix.needsUpdate = true;
+      },
+    };
+  })();
+
+  // Light poles at the corners, and a ring of simple trees in the distance.
+  {
+    const poleMat = stdMat(0x3a4150, 0.5);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 30, 10), poleMat);
+      pole.position.set(sx * 19, 15, sz * 34);
+      pole.castShadow = true;
+      env.poles.add(pole);
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.6, 0.8), stdMat(0xe8edf5, 0.4));
+      lamp.position.set(sx * 19, 30.5, sz * 34 - sz * 0.6);
+      lamp.lookAt(0, 0, 0);
+      env.poles.add(lamp);
+    }
+    const n = 46;
+    const leaves = new THREE.InstancedMesh(new THREE.ConeGeometry(4.2, 11, 8), stdMat(0x2f6b3c, 0.9), n);
+    const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5, 0.7, 3, 6), stdMat(0x5b4030, 0.9), n);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.sin(i * 12.9) * 0.05;
+      const r = 70 + ((i * 37) % 23);
+      const k = 0.8 + ((i * 53) % 10) / 20;
+      p.set(Math.cos(a) * r, 0, Math.sin(a) * r * 1.15);
+      s.set(k, k, k);
+      m.compose(p.clone().setY(1.5 * k), q, s);
+      trunks.setMatrixAt(i, m);
+      m.compose(p.clone().setY(8 * k), q, s);
+      leaves.setMatrixAt(i, m);
+    }
+    env.trees.add(leaves, trunks);
+  }
+
+  /* =====================================================================
+     VENUES  (same court everywhere; only the surroundings change)
+     The park is the scene built above. Each other venue's own props are
+     built the first time it is picked; the shared groups in `env` are
+     just shown or hidden. Everything is flat-coloured low poly, with
+     repeated props drawn as one InstancedMesh, so phones stay smooth.
+     ===================================================================== */
+  const flatMat = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0, flatShading: true });
+  const seeded = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };   // repeatable "random"
+  function canvasTex(w, h, draw) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = 4;
+    return t;
+  }
+  const repeated = (tex, x, y) => { const t = tex.clone(); t.needsUpdate = true; t.repeat.set(x, y); return t; };
+  // One InstancedMesh from a list of { x, y, z, s | sx sy sz, ry }.
+  function instanced(geo, mat, items, castShadow = false) {
+    const im = new THREE.InstancedMesh(geo, mat, items.length);
+    const o = new THREE.Object3D();
+    items.forEach((it, i) => {
+      o.position.set(it.x, it.y || 0, it.z);
+      o.rotation.set(0, it.ry || 0, 0);
+      o.scale.set(it.sx ?? it.s ?? 1, it.sy ?? it.s ?? 1, it.sz ?? it.s ?? 1);
+      o.updateMatrix();
+      im.setMatrixAt(i, o.matrix);
+    });
+    im.castShadow = castShadow;
+    return im;
+  }
+  const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return m; };
+  // A sign with big display-font text, redrawn once the font has loaded.
+  function signTex(text, bg, fg, w = 1024, h = 160) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const t = new THREE.CanvasTexture(c);
+    t.anisotropy = 4;
+    const draw = () => {
+      const g = c.getContext('2d');
+      g.fillStyle = bg; g.fillRect(0, 0, w, h);
+      g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = `400 ${h * 0.62}px "Lilita One", "Arial Black", sans-serif`;
+      g.fillText(text, w / 2, h / 2 + h * 0.03);
+      t.needsUpdate = true;
+    };
+    draw();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+    return t;
+  }
+
+  // Wood floor planks, shared by the gym's floor and court surround.
+  const woodTex = () => canvasTex(256, 256, (g, w, h) => {
+    const tones = ['#c8925a', '#bd8650', '#d19c63', '#c48c55', '#b9824c', '#cc965e', '#c08a52', '#d4a067'];
+    for (let r = 0; r < 8; r++) {
+      g.fillStyle = tones[r]; g.fillRect(0, r * 32, w, 32);
+      g.fillStyle = 'rgba(70, 40, 15, 0.35)'; g.fillRect(0, r * 32, w, 1.5);
+      const jx = (r * 97) % w;   // staggered plank ends
+      g.fillRect(jx, r * 32, 1.5, 32);
+    }
+  });
+
+  const RL = 56, RW = 44, RH = 34;   // gym room: half length, half width, height
+  const YL = 70, YW = 44;            // backyard fence: half length, half width
+
+  const VENUES = {
+    park: {
+      name: 'Park',
+      show: ['fence', 'screens', 'banners', 'stands', 'poles', 'trees'],
+      sky: [[0, '#4f9fea'], [0.55, '#a9d6ff'], [1, '#e6f3ff']], fog: [0xcde6fb, 120, 260],
+      hemi: [0xe6f3ff, 0x3f5f45, 0.72], sun: [0xffffff, 0.9],
+    },
+
+    gym: {
+      name: 'Gym',
+      show: ['screens', 'banners', 'stands'],
+      crowd: 0.5,   // half-full bleachers
+      bg: 0x2a3140, fog: [0x2a3140, 200, 520],
+      hemi: [0xfff6e8, 0x8a6a48, 0.85], sun: [0xfff8ee, 0.7],
+      floor() {
+        const t = woodTex();
+        return {
+          ground: new THREE.MeshStandardMaterial({ map: repeated(t, 120, 120), color: 0xd8c6b0, roughness: 0.6 }),
+          apron: new THREE.MeshStandardMaterial({ map: repeated(t, AREA.halfW * 2 / 5, AREA.halfL * 2 / 5), roughness: 0.6 }),
+        };
+      },
+      build() {
+        const g = new THREE.Group();
+        // The room: a box seen from inside only (BackSide). When the menu
+        // camera circles outside it, the near walls simply vanish.
+        const wall = canvasTex(16, 256, (c, w, h) => {
+          c.fillStyle = '#b9c3d0'; c.fillRect(0, 0, w, h);
+          c.fillStyle = '#13294b'; c.fillRect(0, h * 0.70, w, h * 0.05);
+          c.fillStyle = '#dcf54a'; c.fillRect(0, h * 0.75, w, h * 0.012);
+          c.fillStyle = '#56657c'; c.fillRect(0, h * 0.78, w, h * 0.22);
+        });
+        const side = (map) => new THREE.MeshStandardMaterial({ map, side: THREE.BackSide, roughness: 0.9 });
+        const room = new THREE.Mesh(new THREE.BoxGeometry(RW * 2, RH, RL * 2), [
+          side(wall), side(wall),
+          new THREE.MeshStandardMaterial({ color: 0x5b6270, side: THREE.BackSide, roughness: 0.9 }),   // ceiling
+          new THREE.MeshBasicMaterial({ visible: false }),                                              // floor: the wood ground shows instead
+          side(wall), side(wall),
+        ]);
+        room.position.y = RH / 2 - 0.05;
+        g.add(room);
+        // Ceiling light panels.
+        const lights = [];
+        for (const x of [-20, 0, 20]) for (const z of [-33, -11, 11, 33]) lights.push({ x, y: RH - 0.8, z });
+        g.add(instanced(new THREE.BoxGeometry(7, 0.4, 3), new THREE.MeshBasicMaterial({ color: 0xfffbea }), lights));
+        // Basketball hoops on both end walls.
+        const white = stdMat(0xffffff, 0.5), grey = stdMat(0x59606c, 0.5), orange = stdMat(0xff6a1f, 0.5);
+        for (const s of [-1, 1]) {
+          const z = s * (RL - 3);
+          g.add(box(6, 3.6, 0.2, white, 0, 11.8, z));
+          g.add(box(0.4, 0.4, 3, grey, 0, 13, s * (RL - 1.5)));
+          const rim = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.07, 6, 16), orange);
+          rim.rotation.x = Math.PI / 2;
+          rim.position.set(0, 10, z - s * 0.95);
+          g.add(rim);
+        }
+        // Rec centre sign high on the far wall.
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(32, 5), new THREE.MeshStandardMaterial({ map: signTex('HCW REC CENTER', '#13294b', '#dcf54a'), roughness: 0.8 }));
+        sign.position.set(0, 23, -RL + 0.2);
+        g.add(sign);
+        return g;
+      },
+    },
+
+
+    backyard: {
+      name: 'Backyard',
+      show: ['trees'],
+      sky: [[0, '#4f9fea'], [0.55, '#a9d6ff'], [1, '#e6f3ff']], fog: [0xcde6fb, 120, 260],
+      hemi: [0xe6f3ff, 0x3f5f45, 0.75], sun: [0xffffff, 0.92],
+      floor() {
+        return { ground: stdMat(0x6aa452, 0.95), apron: stdMat(0x767c83, 0.9) };   // lawn and a concrete pad
+      },
+      build() {
+        const g = new THREE.Group();
+        // Wooden privacy fence round the yard.
+        const boards = canvasTex(128, 64, (c, w, h) => {
+          for (let i = 0; i < 8; i++) {
+            c.fillStyle = i % 2 ? '#a8713f' : '#b47b47'; c.fillRect(i * 16, 0, 16, h);
+            c.fillStyle = 'rgba(50, 28, 10, 0.55)'; c.fillRect(i * 16, 0, 1.5, h);
+          }
+        });
+        const FH = 6.5;
+        for (const [len, x, z, ry] of [[YW * 2, 0, -YL, 0], [YW * 2, 0, YL, 0], [YL * 2, -YW, 0, Math.PI / 2], [YL * 2, YW, 0, Math.PI / 2]]) {
+          const f = new THREE.Mesh(new THREE.BoxGeometry(len, FH, 0.3), new THREE.MeshStandardMaterial({ map: repeated(boards, len / 4.4, 1), roughness: 0.9 }));
+          f.position.set(x, FH / 2, z);
+          f.rotation.y = ry;
+          f.receiveShadow = true;
+          g.add(f);
+        }
+        // House behind the far end: walls, gable roof, windows, sliding door, chimney.
+        const HZ = -61, HD = 13, HW = 54, HH = 15;
+        g.add(box(HW, HH, HD, stdMat(0xe9dcc4, 0.9), 0, HH / 2, HZ));
+        const shape = new THREE.Shape([new THREE.Vector2(-HD / 2 - 1.5, 0), new THREE.Vector2(HD / 2 + 1.5, 0), new THREE.Vector2(0, 6.5)]);
+        const roofGeo = new THREE.ExtrudeGeometry(shape, { depth: HW + 3, bevelEnabled: false });
+        roofGeo.rotateY(Math.PI / 2);
+        roofGeo.translate(-(HW + 3) / 2, HH, HZ);
+        g.add(new THREE.Mesh(roofGeo, flatMat(0x7a3b2e)));
+        g.add(box(3, 7, 3, flatMat(0x9a4b3a), 16, HH + 4, HZ - 1));
+        const front = HZ + HD / 2 + 0.1;
+        const glass = stdMat(0x2c4766, 0.3);
+        g.add(instanced(new THREE.BoxGeometry(5, 4, 0.3), glass, [-20, -11, 11, 20].map((x) => ({ x, y: 9.5, z: front }))));
+        g.add(box(8, 7.5, 0.3, stdMat(0x3a5576, 0.3), 0, 3.8, front));
+        // Patio: slab, kettle grill, table with an umbrella and chairs.
+        const slab = new THREE.Mesh(new THREE.PlaneGeometry(40, 9), stdMat(0xbdb4a6, 0.9));
+        slab.rotation.x = -Math.PI / 2;
+        slab.position.set(0, 0.03, front + 4.5);
+        slab.receiveShadow = true;
+        g.add(slab);
+        const black = stdMat(0x1d1f24, 0.5);
+        const bowl = new THREE.Mesh(new THREE.SphereGeometry(1.1, 12, 8), black);
+        bowl.scale.y = 0.85;
+        bowl.position.set(15, 3.1, front + 5);
+        g.add(bowl);
+        for (let i = 0; i < 3; i++) {
+          const a = (i / 3) * Math.PI * 2;
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.6, 5), black);
+          leg.position.set(15 + Math.cos(a) * 0.7, 1.3, front + 5 + Math.sin(a) * 0.7);
+          g.add(leg);
+        }
+        const tx = -15, tz = front + 5;
+        g.add(box(0.2, 7, 0.2, stdMat(0xdddddd, 0.5), tx, 3.5, tz));
+        const table = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.2, 14), stdMat(0xf2f2f2, 0.6));
+        table.position.set(tx, 2.5, tz);
+        g.add(table);
+        const umbrella = new THREE.Mesh(new THREE.ConeGeometry(5, 1.8, 8), flatMat(0xd9483b));
+        umbrella.position.set(tx, 7.6, tz);
+        g.add(umbrella);
+        g.add(instanced(new THREE.BoxGeometry(1.4, 1.8, 1.4), stdMat(0x2f6f8f, 0.7),
+          [[-3, 0], [3, 0], [0, 3]].map(([dx, dz]) => ({ x: tx + dx, y: 0.9, z: tz + dz }))));
+        // Shrubs along the side fences and two shade trees by the house.
+        const shrubs = [];
+        for (const s of [-1, 1]) for (let z = -40; z <= 60; z += 9) shrubs.push({ x: s * (YW - 2.5), y: 1.3, z: z + seeded(z + s) * 3, s: 0.8 + seeded(z * s + 7) * 0.5, ry: z });
+        g.add(instanced(new THREE.IcosahedronGeometry(1.8, 0), flatMat(0x3f7d3a), shrubs));
+        const treeSpots = [{ x: -35, z: -50 }, { x: 35, z: -48 }];
+        g.add(instanced(new THREE.CylinderGeometry(0.8, 1.1, 8, 7), flatMat(0x5b4030), treeSpots.map((p) => ({ ...p, y: 4 })), true));
+        g.add(instanced(new THREE.IcosahedronGeometry(7, 1), flatMat(0x3d7a3a), treeSpots.map((p) => ({ ...p, y: 12.5 })), true));
+        // Seven friends standing around watching: along both sides of the pad and on the patio.
+        const fans = [[-21, 14], [-22.5, -2], [-20.5, -17], [21.5, 10], [22, -9], [-8, front + 8], [5, front + 9]]
+          .map(([x, z], i) => ({ x, z, phase: i * 1.7 }));
+        const body = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.75, 0.9, 3.1, 8), stdMat(0xffffff, 0.8), fans.length);
+        const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.62, 10, 8), stdMat(0xffffff, 0.8), fans.length);
+        const col = new THREE.Color();
+        fans.forEach((p, i) => {
+          body.setColorAt(i, col.setHex(crowd.shirts[(i * 4 + 2) % crowd.shirts.length]));
+          head.setColorAt(i, col.setHex(crowd.skins[(i * 5) % crowd.skins.length]));
+        });
+        body.castShadow = head.castShadow = true;
+        g.add(body, head);
+        const m = new THREE.Matrix4();
+        this.update = (t, excite = 0) => {
+          fans.forEach((p, i) => {
+            // A gentle sway, and a jump when your team wins a point.
+            const bob = Math.max(0, Math.sin(t * 1.1 + p.phase)) * 0.05 +
+              Math.min(1, excite) * Math.abs(Math.sin(t * 8 + p.phase * 3)) * 1.1;
+            m.makeTranslation(p.x, 1.55 + bob, p.z);
+            body.setMatrixAt(i, m);
+            m.makeTranslation(p.x, 3.7 + bob, p.z);
+            head.setMatrixAt(i, m);
+          });
+          body.instanceMatrix.needsUpdate = true;
+          head.instanceMatrix.needsUpdate = true;
+        };
+        this.update(0);
+        return g;
+      },
+    },
+  };
+  const parkFloor = { ground: ground.material, apron: apron.material };
+  let venueNow = null;
+  function applyVenue(key) {
+    const v = VENUES[key] || VENUES.park;
+    if (v === venueNow) return;
+    venueNow = v;
+    if (v.build && !v.group) scene.add(v.group = v.build());
+    for (const o of Object.values(VENUES)) if (o.group) o.group.visible = o === v;
+    for (const k in env) env[k].visible = v.show.includes(k);
+    crowd.setShare(v.crowd ?? 1);
+    if (!v.bgTex) v.bgTex = v.sky ? skyTexture(v.sky) : new THREE.Color(v.bg);
+    scene.background = v.bgTex;
+    scene.fog.color.setHex(v.fog[0]);
+    scene.fog.near = v.fog[1];
+    scene.fog.far = v.fog[2];
+    hemi.color.setHex(v.hemi[0]);
+    hemi.groundColor.setHex(v.hemi[1]);
+    hemi.intensity = v.hemi[2];
+    sun.color.setHex(v.sun[0]);
+    sun.intensity = v.sun[1];
+    if (!v.mats) v.mats = v.floor ? v.floor() : parkFloor;
+    ground.material = v.mats.ground;
+    apron.material = v.mats.apron;
+  }
+
+  /* =====================================================================
+     VIEWER  (orbit camera, court picker, draw-call readout)
+     ===================================================================== */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
+  };
+  const DESC = {
+    park: 'The original outdoor court: chain-link fence, bleachers with a crowd, light poles and a ring of pine trees.',
+    gym: 'An indoor rec center: wood floor, bleachers with a crowd, ceiling lights and a basketball hoop on each end wall.',
+    backyard: 'A concrete pad on the lawn inside a wooden fence, with the house, a grill, an umbrella table, shrubs and shade trees.',
+  };
+  // Camera presets: yaw (round the court), pitch (above the ground), distance, look-at height.
+  // "Player" matches the in-game camera behind your baseline.
+  const VIEWS = {
+    player: { yaw: 0, pitch: 0.39, dist: 41, look: new THREE.Vector3(0, 1, -0.5) },
+    overview: { yaw: 0.65, pitch: 0.85, dist: 105, look: new THREE.Vector3(0, 0, 0) },
+    side: { yaw: Math.PI / 2, pitch: 0.5, dist: 66, look: new THREE.Vector3(0, 3, 0) },
+  };
+  const saved = store.get('kc-courts', {});
+  const ui = {
+    venue: VENUES[saved.venue] ? saved.venue : 'park',
+    view: VIEWS[saved.view] ? saved.view : 'player',
+    spin: false,
+  };
+  const cam = { yaw: 0, pitch: 0, dist: 0, look: new THREE.Vector3() };
+  const goal = { yaw: 0, pitch: 0, dist: 0, look: new THREE.Vector3() };
+
+  const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 700);
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.fov = camera.aspect < 1 ? 66 : 52;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const press = (segId, v) => document.querySelectorAll(`#${segId} button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+  const save = () => store.set('kc-courts', { venue: ui.venue, view: ui.view });
+
+  function setVenue(v) {
+    ui.venue = v;
+    applyVenue(v);
+    press('courtSeg', v);
+    document.getElementById('venueName').textContent = VENUES[v].name;
+    document.getElementById('venueDesc').textContent = DESC[v];
+    save();
+  }
+  function setView(v, snap) {
+    ui.view = v;
+    const p = VIEWS[v];
+    Object.assign(goal, { yaw: p.yaw, pitch: p.pitch, dist: p.dist });
+    goal.look.copy(p.look);
+    if (snap) { Object.assign(cam, { yaw: goal.yaw, pitch: goal.pitch, dist: goal.dist }); cam.look.copy(goal.look); }
+    press('viewSeg', v);
+    save();
+  }
+  document.getElementById('courtSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) setVenue(b.dataset.v);
+  });
+  document.getElementById('viewSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) setView(b.dataset.v);
+  });
+  const spinBtn = document.getElementById('spinBtn');
+  spinBtn.addEventListener('click', () => {
+    ui.spin = !ui.spin;
+    spinBtn.setAttribute('aria-pressed', String(ui.spin));
+    spinBtn.textContent = ui.spin ? 'Circling' : 'Still';
+  });
+  const ORDER = ['park', 'gym', 'backyard'];
+  window.addEventListener('keydown', (e) => {
+    const i = ['1', '2', '3'].indexOf(e.key);
+    if (i >= 0) setVenue(ORDER[i]);
+  });
+
+  // Drag to look around (one finger or mouse), pinch or scroll to zoom.
+  const pointers = new Map();
+  let pinch = 0;
+  const clampGoal = () => {
+    goal.pitch = Math.min(1.45, Math.max(0.05, goal.pitch));
+    goal.dist = Math.min(220, Math.max(14, goal.dist));
+  };
+  canvas.addEventListener('pointerdown', (e) => {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    const p = pointers.get(e.pointerId);
+    if (!p) return;
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const before = Math.hypot(a.x - b.x, a.y - b.y);
+      p.x = e.clientX; p.y = e.clientY;
+      const after = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch && before > 0) goal.dist *= before / after;
+      pinch = after;
+    } else {
+      goal.yaw -= (e.clientX - p.x) * 0.006;
+      goal.pitch += (e.clientY - p.y) * 0.004;
+      p.x = e.clientX; p.y = e.clientY;
+    }
+    clampGoal();
+  });
+  const release = (e) => {
+    pointers.delete(e.pointerId);
+    pinch = 0;
+    if (!pointers.size) canvas.classList.remove('dragging');
+  };
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    goal.dist *= Math.exp(e.deltaY * 0.001);
+    clampGoal();
+  }, { passive: false });
+
+  setVenue(ui.venue);
+  setView(ui.view, true);
+
+  /* ---------- loop ---------- */
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const costEl = document.getElementById('venueCost');
+  let last = performance.now(), clock = 0, costAt = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    clock += dt;
+    if (ui.spin && !pointers.size && !reduceMotion) goal.yaw += dt * 0.12;
+    const k = 1 - Math.exp(-dt * 6);
+    cam.yaw += (goal.yaw - cam.yaw) * k;
+    cam.pitch += (goal.pitch - cam.pitch) * k;
+    cam.dist += (goal.dist - cam.dist) * k;
+    cam.look.lerp(goal.look, k);
+    camera.position.set(
+      cam.look.x + Math.sin(cam.yaw) * Math.cos(cam.pitch) * cam.dist,
+      cam.look.y + Math.sin(cam.pitch) * cam.dist,
+      cam.look.z + Math.cos(cam.yaw) * Math.cos(cam.pitch) * cam.dist,
+    );
+    camera.lookAt(cam.look);
+    if (env.stands.visible) crowd.update(clock, 0);
+    if (venueNow.update) venueNow.update(clock, 0);
+    renderer.render(scene, camera);
+    // How heavy this view is to draw: fewer draw calls and triangles run better on phones.
+    if (now - costAt > 500) {
+      costAt = now;
+      const r = renderer.info.render;
+      costEl.textContent = `This view: ${r.calls} draw calls · ${Math.round(r.triangles / 1000)}k triangles`;
+    }
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
