@@ -1159,8 +1159,8 @@
       desc: 'You shout "Cosmo!" and fire a giant golden ring at the rivals. It knocks the closer rival all the way back to the baseline and the farther one out to the sideline, and drops both fatigue bars to 50%, so they run at 75% speed for the rest of the rally.',
       stats: [['Ring speed', '60 ft/s'], ['Knockback', 'Closer rival to the baseline, farther to the sideline'], ['Rival fatigue', 'Set to 50% (75% run speed)']] },
     { id: 'tide', name: 'High Tide', kind: 'Boost', color: '#2fb4ff', hex: 0x2fb4ff, hint: 'Rivals slide on water',
-      desc: 'Water floods the rival court for 3 s and two small fish swim in it. Any rival who starts moving cannot stop: they keep sliding and can only turn slowly until they hit the edge of the play area.',
-      stats: [['Lasts', '3 s'], ['Rivals', 'Cannot stop once they move'], ['Turning', 'About 60 degrees per second']] },
+      desc: 'Water floods the rival court for 3 s and two small fish swim in it. Any rival who starts moving cannot stop: they keep sliding and can only turn slowly until they hit the edge of the play area. Walking against the slide brakes it to half speed.',
+      stats: [['Lasts', '3 s'], ['Rivals', 'Cannot stop once they move'], ['Braking', 'Walk the other way: slides at half speed'], ['Turning', 'About 60 degrees per second']] },
   ];
   // Order the list is shown in (and the order of the 1-9, 0, -, = keys).
   const ORDER = ['glass', 'quake', 'mirage', 'wind', 'hole', 'cosmo', 'curve', 'gas', 'comet', 'warp', 'frost', 'tide'];
@@ -1182,7 +1182,7 @@
   const FROST = { freeze: 1.05, tire: 0.3 };   // tire: fatigue both rivals lose
   const QUAKE = { lift: 1.35, turn: [55, 85], keep: 1.0, crack: 3 };
   const COMET = { delay: 0.2 };
-  const TIDE = { time: 3, turn: 1.05, start: 1 };   // turn: rad/s; start: speed (ft/s) that counts as moving
+  const TIDE = { time: 3, turn: 1.05, start: 1, brake: 0.5, decel: 16 };   // turn: rad/s; start: speed (ft/s) that counts as moving
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };   // flat like a frisbee, at chest height
   const GAS = { time: 3, mishit: 0.55 };
   const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10 };   // y: the hole floats above their heads
@@ -1254,7 +1254,11 @@
     const want = Math.atan2(tz - p.pos.z, tx - p.pos.x);
     let d = Math.atan2(Math.sin(want - a), Math.cos(want - a));
     a += clamp(d, -TIDE.turn * dt, TIDE.turn * dt);
-    const v = Math.max(sp, Math.min(maxSpeed, sp + 6 * dt));   // can speed up, never slow down
+    // Walking against the slide (more than 90 degrees off) brakes it to half
+    // the run speed; otherwise the slider can speed up but never slow down.
+    const v = Math.abs(d) > Math.PI / 2
+      ? Math.max(Math.min(sp, maxSpeed * TIDE.brake), sp - TIDE.decel * dt)
+      : Math.max(sp, Math.min(maxSpeed, sp + 6 * dt));
     p.vel.set(Math.cos(a) * v, 0, Math.sin(a) * v);
     const bx = p.pos.x + p.vel.x * dt, bz = p.pos.z + p.vel.z * dt;
     p.pos.x = bx; p.pos.z = bz;
