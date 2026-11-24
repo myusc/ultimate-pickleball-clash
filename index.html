@@ -816,7 +816,7 @@
 
   // Ultimates, in roster order: player #1 has Firewall, #2 Earthquake, and so on.
   const ULT_INFO = {
-    glass:  { name: 'Firewall',   kind: 'Boost', color: '#ff6a1f', hex: 0xff6a1f, desc: 'A 6.5 ft wall of fire over the middle third of the net for 4 s bounces their returns back high; lobs fly over it.' },
+    glass:  { name: 'Firewall',   kind: 'Boost', color: '#ff6a1f', hex: 0xff6a1f, desc: 'A 6.5 ft wall of fire over a random third of the net for 8 s bounces their returns back high; lobs fly over it.' },
     quake:  { name: 'Earthquake', kind: 'Shot',  color: '#d9894a', hex: 0xd9894a, desc: 'Your next hit cracks their court and kicks off at an odd angle.' },
     mirage: { name: 'Mirage',     kind: 'Shot',  color: '#ff5fb0', hex: 0xff5fb0, desc: 'Your next hit splits into three balls; two are fakes.' },
     wind:   { name: 'Reborn',     kind: 'Boost', color: '#7be05a', hex: 0x7be05a, desc: 'Refills your and your partner\'s fatigue; for 10 s you both run 30% faster and never mis-hit.' },
@@ -3198,7 +3198,7 @@
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
   const GAS = { time: 3, mishit: 0.55 };
   const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // x, z: where it can open (baseline is at 22)
-  const GLASS = { time: 4, h: 6.5, lift: 1.5, z: 0.35, halfW: COURT.postX / 3 };
+  const GLASS = { time: 8, h: 6.5, lift: 1.5, z: 0.35, halfW: COURT.postX / 3 };
   // Each boost: time left, and the team that used it (its opponents feel it).
   const fresh = () => ({ t: 0, team: 'a', user: null });
   const U = { warp: fresh(), glass: fresh(), hole: Object.assign(fresh(), { x: 0, z: -12 }), gas: fresh(), tide: fresh(), cosmo: null, ballT: 0, shot: null };
@@ -3334,7 +3334,11 @@
       team.forEach((q) => { q.windT = WIND.time; q.stamina = 1; });
       usfx.wind();
     }
-    else if (id === 'glass') { if (!start('glass', GLASS.time)) return false; usfx.glass(); }
+    else if (id === 'glass') {
+      if (!start('glass', GLASS.time)) return false;
+      U.glass.x = rand(-(COURT.postX - GLASS.halfW), COURT.postX - GLASS.halfW);   // a random third-of-the-net stretch
+      usfx.glass();
+    }
     else if (id === 'tide') {
       if (!start('tide', TIDE.time)) return false;
       U.tide.only = Math.random() < TIDE.both ? null : opp[Math.random() < 0.5 ? 0 : 1];   // 25%: just one opponent
@@ -3433,7 +3437,7 @@
     const g = U.glass;
     if (g.t > 0 && ball.lastTeam !== g.team && !ball.netted) {
       const s = sideSign(g.team);
-      if (pz * s < GLASS.z && ball.pos.z * s >= GLASS.z && Math.abs(ball.pos.x) < GLASS.halfW + BALL_R && ball.pos.y < GLASS.h) {
+      if (pz * s < GLASS.z && ball.pos.z * s >= GLASS.z && Math.abs(ball.pos.x - (g.x || 0)) < GLASS.halfW + BALL_R && ball.pos.y < GLASS.h) {
         ball.pos.z = s * (GLASS.z - 0.01);
         ball.vel.z = -s * Math.abs(ball.vel.z) * 0.75;
         ball.vel.x *= 0.85;
@@ -3664,7 +3668,7 @@
       if (y > 0.1) { e.m.rotation.set(0, 0, 0); e.m.lookAt(camera.position); } else e.m.rotation.set(-Math.PI / 2, 0, 0);
     }
 
-    // Firewall: layered sheets of flame over the middle third of the net.
+    // Firewall: layered sheets of flame over a third of the net, placed at random.
     const flameTex = (() => {
       const c = document.createElement('canvas'); c.width = 128; c.height = 256;
       const g = c.getContext('2d');
@@ -3950,6 +3954,7 @@
         wall.visible = U.glass.t > 0;
         if (wall.visible) {
           wall.position.z = sideSign(U.glass.team) * GLASS.z;   // on the user's side of the net
+          wall.position.x = U.glass.x || 0;
           const up = Math.min(1, (GLASS.time - U.glass.t) / 0.3);
           wall.scale.y = 1 - Math.pow(1 - up, 3);
           const ending = U.glass.t < 0.5 ? (Math.sin(time * 40) > 0 ? 0.35 : 1) : 1;
