@@ -821,7 +821,7 @@
     mirage: { name: 'Mirage',     kind: 'Shot',  color: '#ff5fb0', hex: 0xff5fb0, desc: 'Your next hit splits into three balls; two are fakes.' },
     wind:   { name: 'Reborn',     kind: 'Boost', color: '#7be05a', hex: 0x7be05a, desc: 'Refills your and your partner\'s fatigue; for 10 s you both run 30% faster and never mis-hit.' },
     hole:   { name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, desc: 'Opens a black hole near their baseline that drags both rivals toward it for 1 s.' },
-    cosmo:  { name: 'Cosmo',      kind: 'Boost', color: '#ffc23d', hex: 0xffc23d, desc: 'A golden ring knocks the rivals to the baseline and sideline.' },
+    cosmo:  { name: 'Cosmo',      kind: 'Boost', color: '#ffc23d', hex: 0xffc23d, desc: 'A golden ring knocks back both rivals half the time, otherwise just one of them.' },
     curve:  { name: 'Flaky',      kind: 'Shot',  color: '#c45cff', hex: 0xc45cff, desc: 'Your next hit bends hard sideways after the net.' },
     gas:    { name: 'Poison',     kind: 'Boost', color: '#b44dd6', hex: 0xb44dd6, desc: 'Gasses both rivals for 3 s: 55% of their hits go wrong.' },
     comet:  { name: 'One Shot',   kind: 'Shot',  color: '#ff7a1a', hex: 0xff7a1a, desc: 'Your next hit is a blazing 75 ft/s shot; rivals react 0.2 s late.' },
@@ -3184,7 +3184,7 @@
   const FROST = { freeze: 0.5, tire: 0.3, bounce: 0.75 };   // bounce: ball speed kept on the first bounce
   const QUAKE = { lift: 1, turn: [55, 85], keep: 1.0, crack: 3 };
   const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16 };
-  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
+  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };
   const GAS = { time: 3, mishit: 0.55 };
   const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // x, z: where it can open (baseline is at 22)
   const GLASS = { time: 4, h: 12, z: 0.35, halfW: COURT.postX / 3 };
@@ -3331,7 +3331,9 @@
       const dist = (r) => Math.hypot(r.pos.x - p.pos.x, r.pos.z - p.pos.z);
       const near = dist(opp[0]) <= dist(opp[1]) ? opp[0] : opp[1];
       const dir = -sideSign(T);
-      U.cosmo = { t: 0, user: p, dir, x0: p.pos.x, z0: p.pos.z, z: p.pos.z, near, hit: new Set() };
+      // Half the time the ring knocks back both rivals; otherwise only one, at random.
+      const only = Math.random() < COSMO.both ? null : opp[Math.random() < 0.5 ? 0 : 1];
+      U.cosmo = { t: 0, user: p, dir, x0: p.pos.x, z0: p.pos.z, z: p.pos.z, near, only, hit: new Set() };
       state.shake = 0.3;
       usfx.cosmo();
     } else if (id === 'hole') {
@@ -3480,6 +3482,7 @@
     rv.forEach((r) => {
       if (c.hit.has(r) || (c.z - r.pos.z) * c.dir < 0) return;
       c.hit.add(r);
+      if (c.only && r !== c.only) return;   // the ring passes this rival by
       const fx0 = r.pos.x, fz0 = r.pos.z;
       let tx = fx0, tz = fz0;
       if (r === c.near) tz = sideSign(r.team) * COURT.halfL;                                     // back to the baseline

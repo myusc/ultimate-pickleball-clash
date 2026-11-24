@@ -1156,8 +1156,8 @@
       desc: 'A cloud of purple gas wraps around both rivals for 3 s. While they are in it, more than half of their hits go wrong and fly long or wide.',
       stats: [['Lasts', '3 s'], ['Target', 'Both rivals'], ['Mis-hits', '55% of their hits, normally 0%']] },
     { id: 'cosmo', name: 'Cosmo', kind: 'Boost', color: '#ffc23d', hex: 0xffc23d, hint: 'Golden ring knockback',
-      desc: 'You shout "Cosmo!" and fire a giant golden ring at the rivals. It knocks the closer rival all the way back to the baseline and the farther one out to the sideline, and both rivals lose 25% of their fatigue bar, so a rival who was already tired drops to a slower run speed.',
-      stats: [['Ring speed', '60 ft/s'], ['Knockback', 'Closer rival to the baseline, farther to the sideline'], ['Rival fatigue', 'Each rival loses 25%']] },
+      desc: 'You shout "Cosmo!" and fire a giant golden ring at the rivals. Half the time it hits both rivals; otherwise it hits only one of them, chosen at random, and passes the other by. A hit rival is knocked back: the closer one all the way to the baseline, the farther one out to the sideline. Each hit rival also loses 25% of their fatigue bar.',
+      stats: [['Ring speed', '60 ft/s'], ['Knockback', 'Closer rival to the baseline, farther to the sideline'], ['Hits', 'Both rivals 50%, one at random 50%'], ['Rival fatigue', 'Each hit rival loses 25%']] },
     { id: 'tide', name: 'High Tide', kind: 'Boost', color: '#2fb4ff', hex: 0x2fb4ff, hint: 'Rivals slide on water',
       desc: 'Water floods the rival court for 2 s and two small fish swim in it. Any rival who starts moving cannot stop: they keep sliding and can only turn slowly until they hit the edge of the play area. Walking against the slide brakes it to half speed.',
       stats: [['Lasts', '2 s'], ['Rivals', 'Cannot stop once they move'], ['Braking', 'Walk the other way: slides at half speed'], ['Turning', 'About 60 degrees per second']] },
@@ -1183,7 +1183,7 @@
   const QUAKE = { lift: 1, turn: [55, 85], keep: 1.0, crack: 3 };
   const COMET = { delay: 0.2 };
   const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16 };   // turn: rad/s; start: speed (ft/s) that counts as moving
-  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };   // flat like a frisbee, at chest height
+  const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };   // flat like a frisbee, at chest height
   const GAS = { time: 3, mishit: 0.55 };
   const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // y: the hole floats above their heads
   const GLASS = { time: 4, h: 12, z: 0.35, halfW: COURT.postX / 3 };   // middle third of the net, just on your side
@@ -1523,7 +1523,8 @@
       if (S.cosmo) return;
       // The ring flies from you toward the rivals; each one is knocked back as it reaches them.
       const near = rivals.reduce((a, r) => (Math.hypot(r.pos.x - you.pos.x, r.pos.z - you.pos.z) < Math.hypot(a.pos.x - you.pos.x, a.pos.z - you.pos.z) ? r : a));
-      S.cosmo = { t: 0, x0: you.pos.x, z0: you.pos.z - 1, z: you.pos.z - 1, near, hit: new Set() };
+      const only = Math.random() < COSMO.both ? null : rivals[Math.random() < 0.5 ? 0 : 1];   // half the time just one rival
+      S.cosmo = { t: 0, x0: you.pos.x, z0: you.pos.z - 1, z: you.pos.z - 1, near, only, hit: new Set() };
       S.shake = 0.3;
       sfx.cosmo();
     } else if (u.id === 'gas') {
@@ -1720,6 +1721,7 @@
       rivals.forEach((r) => {
         if (c.hit.has(r) || c.z > r.pos.z) return;
         c.hit.add(r);
+        if (c.only && r !== c.only) { say(r, 'MISSED', 1); return; }
         const fx = r.pos.x, fz = r.pos.z;
         let tx = fx, tz = fz;
         if (r === c.near) tz = -COURT.halfL;                                        // all the way back to the baseline
