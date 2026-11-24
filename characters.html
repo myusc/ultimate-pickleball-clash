@@ -179,6 +179,37 @@
   .tag.r small { color: var(--paper); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
   .tag.r.sel b { background: var(--ball); box-shadow: 0 0 0 2px var(--ink), 0 0 14px rgba(220, 245, 74, 0.8); }
   .cycler output.wide { min-width: 170px; }
+  /* Roster tags: number plus that player's ultimate in its colour. */
+  .tag.r small .u {
+    display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 6px;
+    background: rgba(14, 24, 48, 0.82); color: var(--ult); text-shadow: none; font-weight: 600;
+  }
+  /* Selected player's ultimate: name, type and what it does. */
+  .ultcard {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 86px);
+    left: max(16px, env(safe-area-inset-left, 0px));
+    width: min(280px, calc(100vw - 32px));
+    box-sizing: border-box;
+    padding: 10px 14px 12px;
+    border-radius: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--ult, var(--ball));
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    pointer-events: none;
+  }
+  .ultcard .who { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .ultcard h2 { margin: 3px 0 2px; font: 400 22px var(--font-display); letter-spacing: 0.03em; color: var(--ult); }
+  .ultcard .kind { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); color: var(--paper); }
+  .ultcard p { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
+  /* Phones: a one-line pill so it doesn't cover the back row. */
+  @media (max-width: 640px) {
+    .ultcard { top: calc(env(safe-area-inset-top, 0px) + 72px); width: auto; padding: 5px 10px; display: flex; align-items: baseline; gap: 8px; }
+    .ultcard .who, .ultcard p { display: none; }
+    .ultcard h2 { margin: 0; font-size: 16px; }
+  }
   .hint {
     position: fixed;
     right: max(16px, env(safe-area-inset-right, 0px));
@@ -213,21 +244,21 @@
 <div id="stage"><canvas id="c" aria-label="3D pickleball characters on turntables"></canvas></div>
 
 <div class="title">
-  <div class="eyebrow">Milestone 1 · Character lineup</div>
+  <div class="eyebrow">The 12 preset players</div>
   <h1>ULTIMATE PICKLEBALL <span>CLASH</span></h1>
 </div>
 <div class="hint">Drag to spin · click a player to select · 1–5 animation · [ ] hair</div>
 
 <div id="tags"></div>
 
+<div class="ultcard" id="ultCard" aria-live="polite">
+  <div class="who" id="ultWho">Connor Garnett · #1</div>
+  <h2 id="ultName">Firewall</h2>
+  <span class="kind" id="ultKind">Boost</span>
+  <p id="ultDesc"></p>
+</div>
+
 <div class="dock" role="toolbar" aria-label="Preview controls">
-  <div class="group">
-    <span id="lineupLabel">Lineup</span>
-    <div class="seg" role="group" aria-labelledby="lineupLabel" id="lineupSeg">
-      <button type="button" data-lineup="team" aria-pressed="true">Team</button>
-      <button type="button" data-lineup="roster" aria-pressed="false">Roster (12)</button>
-    </div>
-  </div>
   <div class="group">
     <span id="animLabel">Animation</span>
     <div class="seg" role="group" aria-labelledby="animLabel" id="animSeg">
@@ -238,7 +269,7 @@
       <button type="button" id="anim-overhead" data-anim="overhead" aria-pressed="false">Overhead</button>
     </div>
   </div>
-  <div class="group" id="pickGroup" hidden>
+  <div class="group" id="pickGroup">
     <span id="pickLabel">Selected player</span>
     <div class="cycler" role="group" aria-labelledby="pickLabel">
       <button type="button" id="pickPrev" aria-label="Previous player">‹</button>
@@ -246,21 +277,11 @@
       <button type="button" id="pickNext" aria-label="Next player">›</button>
     </div>
   </div>
-  <div class="group" id="zoomGroup" hidden>
+  <div class="group" id="zoomGroup">
     <span id="zoomLabel">View</span>
     <div class="seg" role="group" aria-labelledby="zoomLabel" id="zoomSeg">
       <button type="button" data-zoom="0" aria-pressed="true">All 12</button>
       <button type="button" data-zoom="1" aria-pressed="false">Selected</button>
-    </div>
-  </div>
-  <div class="group" id="viewGroup">
-    <span id="viewLabel">View</span>
-    <div class="seg" role="group" aria-labelledby="viewLabel" id="viewSeg">
-      <button type="button" id="view-all" data-view="-1" aria-pressed="true">All</button>
-      <button type="button" id="view-0" data-view="0" aria-pressed="false">You</button>
-      <button type="button" id="view-1" data-view="1" aria-pressed="false">Kai</button>
-      <button type="button" id="view-2" data-view="2" aria-pressed="false">Rex</button>
-      <button type="button" id="view-3" data-view="3" aria-pressed="false">Juno</button>
     </div>
   </div>
   <div class="group">
@@ -283,7 +304,7 @@
   'use strict';
 
   /* =====================================================================
-     CHARACTER FACTORY  (reused by the game in milestone 2)
+     CHARACTER FACTORY  (the game, index.html, has a copy; keep the two in sync)
      Units are feet. Characters face -Z. The rig:
        root ─ rig (height from leg angles) ─┬─ hip ─ knee        (×2 legs)
                                            └─ upper (lean + twist)
@@ -299,24 +320,43 @@
     { id: 'juno', name: 'JUNO', team: 'b', role: 'Rival · violet team',   shirt: TEAM_COLORS.b, shorts: 0x23193a, skin: 0xffdcc2, hair: 'pony',   hairColor: 0xd9a441, paddle: 0x3fa9ff },
   ];
 
+  // Ultimates, in roster order: player #1 has Firewall, #2 Earthquake, and so on.
+  // Same table as the game (index.html); keep the two in sync.
+  const ULT_INFO = {
+    glass:  { name: 'Firewall',   kind: 'Boost', color: '#ff6a1f', hex: 0xff6a1f, desc: 'A 6.5 ft wall of fire over a random third of the net for 8 s bounces their returns back high; lobs fly over it.' },
+    quake:  { name: 'Earthquake', kind: 'Shot',  color: '#d9894a', hex: 0xd9894a, desc: 'Your next hit cracks their court and kicks off at an odd angle.' },
+    mirage: { name: 'Mirage',     kind: 'Shot',  color: '#ff5fb0', hex: 0xff5fb0, desc: 'Your next hit splits into three balls; two are fakes.' },
+    wind:   { name: 'Reborn',     kind: 'Boost', color: '#7be05a', hex: 0x7be05a, desc: 'Refills your and your partner\'s fatigue; for 10 s you both run 30% faster and never mis-hit.' },
+    hole:   { name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, desc: 'Opens a black hole near their baseline that drags both rivals toward it for 1 s.' },
+    cosmo:  { name: 'Cosmo',      kind: 'Boost', color: '#ffc23d', hex: 0xffc23d, desc: 'A golden ring knocks back both rivals half the time, otherwise just one of them.' },
+    curve:  { name: 'Flaky',      kind: 'Shot',  color: '#c45cff', hex: 0xc45cff, desc: 'Your next hit bends hard sideways after the net.' },
+    gas:    { name: 'Poison',     kind: 'Boost', color: '#b44dd6', hex: 0xb44dd6, desc: 'Gasses both rivals for 3 s: 55% of their hits go wrong.' },
+    comet:  { name: 'One Shot',   kind: 'Shot',  color: '#ff7a1a', hex: 0xff7a1a, desc: 'Your next hit is a blazing 75 ft/s shot; rivals react 0.4 s late.' },
+    warp:   { name: 'Time Warp',  kind: 'Boost', color: '#4fd1c5', hex: 0x4fd1c5, desc: 'For 3 s the ball moves at 70% and the rivals at 45%.' },
+    frost:  { name: 'Cold Snap',  kind: 'Shot',  color: '#7fe3ff', hex: 0x7fe3ff, desc: 'A low kitchen drop that freezes the nearest rival for 0.5 s.' },
+    tide:   { name: 'High Tide',  kind: 'Boost', color: '#2fb4ff', hex: 0x2fb4ff, desc: 'Floods their court for 2 s (75% both rivals, 25% just one): once they move, they cannot stop, only brake to half speed by walking back.' },
+  };
+  const ULT_ORDER = ['glass', 'quake', 'mirage', 'wind', 'hole', 'cosmo', 'curve', 'gas', 'comet', 'warp', 'frost', 'tide'];
+
   // Roster: 12 selectable players. Simple stylised looks (not likenesses);
   // hair, colours and paddles are just there to tell them apart.
+  // Names, looks and ultimates match the game's roster.
   const ROSTER = [
-    ['Connor Garnett',    0x2f80ed, 0x1f2a44, 0xf1c7a3, 'quiff',    0x5a3a22, 0xffd23f],
-    ['Jade Kawamoto',     0xe94f8a, 0x23193a, 0xf3d0b0, 'pony',     0x151217, 0x3fa9ff],
-    ['Hunter Johnson',    0x27ae60, 0x1f2a44, 0xf5cfae, 'short',    0x8a5a2b, 0xff4f6d],
-    ['J-Dub Johnson',     0xf2994a, 0x1f2a44, 0xe9b98f, 'buzz',     0x3a2a1e, 0x22c7b8],
-    ['Jorja Johnson',     0x9b51e0, 0x23193a, 0xf5d3b5, 'bun',      0x3b2416, 0xff8a2b],
-    ['Gabriel Tardio',    0xeb5757, 0x1f2a44, 0xd9a47a, 'spiky',    0x1d1410, 0xdcf54a],
-    ['Anna Bright',       0x00b8a9, 0x23193a, 0xffdcc2, 'pigtails', 0x141414, 0xb45cff],
-    ['Eric Oncins',       0x56ccf2, 0x1f2a44, 0xe2ad84, 'mohawk',   0x3b2416, 0xff4f6d],
-    ['Dylan Frazier',     0x6fcf97, 0x1f2a44, 0xf1c7a3, 'curly',    0x6b4226, 0x2f80ed],
-    ['Kaitlyn Christian', 0xf2c94c, 0x23193a, 0xf3cba8, 'pony',     0x8a5a2b, 0xe94f8a],
-    ['Anna Leigh Waters', 0xff6f91, 0x23193a, 0xffdcc2, 'pony',     0xe8c27a, 0x27ae60],
-    ['Ben Johns',         0x3f51b5, 0x1f2a44, 0xf1c7a3, 'short',    0x4a3020, 0xf2994a],
-  ].map(([name, shirt, shorts, skin, hair, hairColor, paddle], i) => ({
-    id: 'r' + i, name, full: name, roster: i, team: i % 2 ? 'b' : 'a', role: `Roster · #${i + 1}`,
-    shirt, shorts, skin, hair, hairColor, paddle,
+    ['Connor Garnett',    'Connor',     0x2f80ed, 0x1f2a44, 0xf1c7a3, 'quiff',    0x5a3a22, 0xffd23f],
+    ['Jade Kawamoto',     'Jade',       0xe94f8a, 0x23193a, 0xf3d0b0, 'pony',     0x151217, 0x3fa9ff],
+    ['Hunter Johnson',    'Hunter',     0x27ae60, 0x1f2a44, 0xf5cfae, 'short',    0x8a5a2b, 0xff4f6d],
+    ['J-Dub Johnson',     'J-Dub',      0xf2994a, 0x1f2a44, 0xe9b98f, 'buzz',     0x3a2a1e, 0x22c7b8],
+    ['Jorja Johnson',     'Jorja',      0x9b51e0, 0x23193a, 0xf5d3b5, 'bun',      0x3b2416, 0xff8a2b],
+    ['Gabriel Tardio',    'Gabriel',    0xeb5757, 0x1f2a44, 0xd9a47a, 'spiky',    0x1d1410, 0xdcf54a],
+    ['Anna Bright',       'Anna B.',    0x00b8a9, 0x23193a, 0xffdcc2, 'pigtails', 0x141414, 0xb45cff],
+    ['Eric Oncins',       'Eric',       0x56ccf2, 0x1f2a44, 0xe2ad84, 'mohawk',   0x3b2416, 0xff4f6d],
+    ['Dylan Frazier',     'Dylan',      0x6fcf97, 0x1f2a44, 0xf1c7a3, 'curly',    0x6b4226, 0x2f80ed],
+    ['Kaitlyn Christian', 'Kaitlyn',    0xf2c94c, 0x23193a, 0xf3cba8, 'pony',     0x8a5a2b, 0xe94f8a],
+    ['Anna Leigh W.',     'Anna Leigh', 0xff6f91, 0x23193a, 0xffdcc2, 'pony',     0xe8c27a, 0x27ae60],
+    ['Ben J.',            'Ben',        0x3f51b5, 0x1f2a44, 0xf1c7a3, 'short',    0x4a3020, 0xf2994a],
+  ].map(([name, short, shirt, shorts, skin, hair, hairColor, paddle], i) => ({
+    id: 'r' + i, name, full: name, short, roster: i, team: i % 2 ? 'b' : 'a', role: `#${i + 1}`,
+    shirt, shorts, skin, hair, hairColor, paddle, ult: ULT_ORDER[i],
   }));
 
   // Leg and arm segment lengths (ft). HIP = THIGH + SHIN + ankle-to-floor.
@@ -816,14 +856,15 @@
   const plinthGeo = new THREE.CylinderGeometry(1.7, 1.8, 0.28, 40);
   const ringGeo = new THREE.TorusGeometry(1.75, 0.05, 6, 48);
 
-  const actors = [...CHARACTERS, ...ROSTER].map((def, i) => {
+  // One turntable per preset player.
+  const actors = ROSTER.map((def, i) => {
     const ch = createCharacter(def);
     const base = new THREE.Group();
     const plinth = new THREE.Mesh(plinthGeo, mat(0x16223e, 0.6));
     plinth.position.y = 0.14;
     plinth.receiveShadow = true;
     plinth.castShadow = true;
-    const ringColor = def.roster != null ? 0x8a97b8 : TEAM_COLORS[def.team];
+    const ringColor = 0x8a97b8;
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshStandardMaterial({
       color: ringColor, emissive: ringColor, emissiveIntensity: 0.35,
     }));
@@ -834,13 +875,14 @@
     scene.add(base);
 
     const tag = document.createElement('div');
-    tag.className = 'tag ' + (def.roster != null ? 'r' : def.team);
+    tag.className = 'tag r';
     tag.innerHTML = '<b></b><small></small>';
     tag.querySelector('b').textContent = def.name;
     tag.querySelector('small').textContent = def.role;
+    tag.style.setProperty('--ult', ULT_INFO[def.ult].color);
     document.getElementById('tags').appendChild(tag);
 
-    return { ch, base, ring, tag, set: def.roster != null ? 'roster' : 'team', phase: i * 0.37, spin: Math.PI, target: new THREE.Vector3() };
+    return { ch, base, ring, tag, phase: i * 0.37, spin: Math.PI, target: new THREE.Vector3() };
   });
 
   /* ---------- layout + camera ---------- */
@@ -855,12 +897,10 @@
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
   };
   const saved = store.get('kc-roster', {});
-  const ui = { anim: 'idle', view: -1, spinning: true, lineup: saved.lineup === 'roster' ? 'roster' : 'team', pick: Number.isInteger(saved.pick) ? saved.pick % 12 : 0, zoom: false };
-  const team = actors.filter((a) => a.set === 'team');
-  const roster = actors.filter((a) => a.set === 'roster');
-  const shown = () => (ui.lineup === 'roster' ? roster : team);
-  // The actor the camera focuses on, or null for the whole lineup.
-  const focus = () => (ui.lineup === 'roster' ? (ui.zoom ? roster[ui.pick] : null) : ui.view >= 0 ? team[ui.view] : null);
+  const ui = { anim: 'idle', spinning: true, pick: Number.isInteger(saved.pick) ? saved.pick % 12 : 0, zoom: false };
+  const roster = actors;
+  // The actor the camera focuses on, or null for all 12.
+  const focus = () => (ui.zoom ? roster[ui.pick] : null);
   let portrait = false;
 
   function layout() {
@@ -870,10 +910,6 @@
     portrait = camera.aspect < 0.9;
     camera.fov = portrait ? 42 : 35;
     camera.updateProjectionMatrix();
-    const spots = portrait
-      ? [[-2.3, 2.6], [2.3, 2.6], [-2.3, -4.4], [2.3, -4.4]]
-      : [[-6.3, 0], [-2.1, 0], [2.1, 0], [6.3, 0]];
-    team.forEach((a, i) => a.target.set(spots[i][0], 0, spots[i][1]));
     // Roster: two rows of six, or four rows of three on a tall screen.
     roster.forEach((a, i) => {
       if (portrait) a.target.set(((i % 3) - 1) * 4.0, 0, 4 - Math.floor(i / 3) * 5.5);
@@ -889,25 +925,10 @@
       wantLook.set(t.x, portrait ? 2.6 : 3.2, t.z);
       return;
     }
-    if (ui.lineup === 'roster') {
-      const halfW = portrait ? 10.5 : 13.5, tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
-      const d = Math.max(portrait ? 24 : 20, halfW / tanH + (portrait ? 6 : 10));
-      wantPos.set(0, portrait ? d * 0.95 : 17, portrait ? d * 0.55 : d);
-      wantLook.set(0, 0, portrait ? -6 : -2.5);
-      return;
-    }
-    if (portrait) {
-      // Fit a ~9 ft wide group in the narrow view.
-      const halfW = 5.2, tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
-      const d = Math.max(20, halfW / tanH);
-      wantPos.set(0, 15, d);
-      wantLook.set(0, 3.4, -1);
-    } else {
-      const halfW = 9.6, tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
-      const d = Math.max(17, halfW / tanH + 5);
-      wantPos.set(0, 6, d);
-      wantLook.set(0, 3, 0);
-    }
+    const halfW = portrait ? 10.5 : 13.5, tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+    const d = Math.max(portrait ? 24 : 20, halfW / tanH + (portrait ? 6 : 10));
+    wantPos.set(0, portrait ? d * 0.95 : 17, portrait ? d * 0.55 : d);
+    wantLook.set(0, 0, portrait ? -6 : -2.5);
   }
 
   window.addEventListener('resize', layout);
@@ -929,17 +950,9 @@
     const b = e.target.closest('button');
     if (b) setAnim(b.dataset.anim);
   });
-  document.getElementById('viewSeg').addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    ui.view = Number(b.dataset.view);
-    press('viewSeg', b);
-    showHair();
-  });
-
-  // Hair cycles the focused player's style; with "All" in view it edits You.
+  // Hair cycles the selected player's style.
   const hairName = document.getElementById('hairName');
-  const hairTarget = () => focus() || (ui.lineup === 'roster' ? roster[ui.pick] : team[0]);
+  const hairTarget = () => roster[ui.pick];
   function showHair() {
     const a = hairTarget();
     const name = a.ch.def.full || a.ch.def.name.charAt(0) + a.ch.def.name.slice(1).toLowerCase();
@@ -955,43 +968,40 @@
   document.getElementById('hairNext').addEventListener('click', () => stepHair(1));
   showHair();
 
-  // Lineup (the original four, or the 12-player roster) and roster selection.
+  // Selection: which of the 12 is highlighted, and the All 12 / Selected view.
   const pickName = document.getElementById('pickName');
   function syncLineup() {
-    press('lineupSeg', document.querySelector(`#lineupSeg [data-lineup="${ui.lineup}"]`));
     press('zoomSeg', document.querySelector(`#zoomSeg [data-zoom="${ui.zoom ? 1 : 0}"]`));
-    const r = ui.lineup === 'roster';
-    document.getElementById('pickGroup').hidden = !r;
-    document.getElementById('zoomGroup').hidden = !r;
-    document.getElementById('viewGroup').hidden = r;
     actors.forEach((a) => {
-      const on = a.set === ui.lineup;
+      const sel = roster[ui.pick] === a;
       // In Selected view only the chosen player stands on stage, so nobody blocks them.
-      a.base.visible = on && !(a.set === 'roster' && ui.zoom && roster[ui.pick] !== a);
-      a.tag.hidden = !on;
-      if (a.set === 'roster') {
-        const sel = roster[ui.pick] === a;
-        a.tag.classList.toggle('sel', sel);
-        a.tag.querySelector('small').textContent = sel ? 'Selected' : a.ch.def.role;
-        a.ring.material.color.setHex(sel ? 0xdcf54a : 0x8a97b8);
-        a.ring.material.emissive.setHex(sel ? 0xdcf54a : 0x8a97b8);
-        a.ring.material.emissiveIntensity = sel ? 0.9 : 0.35;
-      }
+      a.base.visible = !ui.zoom || sel;
+      a.tag.classList.toggle('sel', sel);
+      const small = a.tag.querySelector('small');
+      small.textContent = sel ? 'Selected' : a.ch.def.role;
+      const u = document.createElement('span');
+      u.className = 'u';
+      u.textContent = ULT_INFO[a.ch.def.ult].name;
+      small.appendChild(u);
+      a.ring.material.color.setHex(sel ? 0xdcf54a : 0x8a97b8);
+      a.ring.material.emissive.setHex(sel ? 0xdcf54a : 0x8a97b8);
+      a.ring.material.emissiveIntensity = sel ? 0.9 : 0.35;
     });
-    pickName.textContent = roster[ui.pick].ch.def.full;
-    store.set('kc-roster', { lineup: ui.lineup, pick: ui.pick });
+    const def = roster[ui.pick].ch.def, u = ULT_INFO[def.ult];
+    pickName.textContent = def.full;
+    const card = document.getElementById('ultCard');
+    card.style.setProperty('--ult', u.color);
+    document.getElementById('ultWho').textContent = `${def.full} · ${def.role}`;
+    document.getElementById('ultName').textContent = u.name;
+    document.getElementById('ultKind').textContent = u.kind === 'Shot' ? 'Shot · powers your next hit' : 'Boost · starts at once';
+    document.getElementById('ultDesc').textContent = u.desc;
+    store.set('kc-roster', { pick: ui.pick });
     showHair();
   }
   function pick(i) {
     ui.pick = (i + 12) % 12;
     syncLineup();
   }
-  document.getElementById('lineupSeg').addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    ui.lineup = b.dataset.lineup;
-    syncLineup();
-  });
   document.getElementById('zoomSeg').addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -1021,7 +1031,6 @@
   let drag = null;
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function clickPick(e) {
-    if (ui.lineup !== 'roster') return;
     ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     const hit = ray.intersectObjects(roster.map((a) => a.base), true)[0];
@@ -1062,7 +1071,7 @@
     clock += dt;
 
     const ease = 1 - Math.exp(-dt * 5);
-    shown().forEach((a) => {
+    actors.forEach((a) => {
       a.base.position.lerp(a.target, ease);
       if (ui.spinning && !drag && !reduceMotion) a.spin += dt * 0.55;
       a.ch.root.rotation.y = a.spin;
@@ -1070,7 +1079,7 @@
     });
 
     // On a tall screen, centre the roster in the space above the control dock.
-    if (portrait && ui.lineup === 'roster' && !ui.zoom) {
+    if (portrait && !ui.zoom) {
       const dockTop = document.querySelector('.dock').getBoundingClientRect().top;
       const titleBottom = document.querySelector('.title').getBoundingClientRect().bottom;
       camera.setViewOffset(window.innerWidth, window.innerHeight, 0, window.innerHeight / 2 - (titleBottom + dockTop) / 2, window.innerWidth, window.innerHeight);
@@ -1088,8 +1097,8 @@
     const w = window.innerWidth, h = window.innerHeight;
     const f = focus();
     const above = !f && portrait;
-    shown().forEach((a) => {
-      if (above) tagPoint.set(a.base.position.x, a.set === 'roster' ? 6.4 : 7.7, a.base.position.z);
+    actors.forEach((a) => {
+      if (above) tagPoint.set(a.base.position.x, 6.4, a.base.position.z);
       else tagPoint.set(a.base.position.x, 0, a.base.position.z + 1.9);
       tagPoint.project(camera);
       const x = (tagPoint.x * 0.5 + 0.5) * w;
