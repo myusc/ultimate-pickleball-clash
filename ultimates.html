@@ -1159,8 +1159,8 @@
       desc: 'You shout "Cosmo!" and fire a giant golden ring at the rivals. Half the time it hits both rivals; otherwise it hits only one of them, chosen at random, and passes the other by. A hit rival is knocked back: the closer one all the way to the baseline, the farther one out to the sideline. Each hit rival also loses 25% of their fatigue bar.',
       stats: [['Ring speed', '60 ft/s'], ['Knockback', 'Closer rival to the baseline, farther to the sideline'], ['Hits', 'Both rivals 50%, one at random 50%'], ['Rival fatigue', 'Each hit rival loses 25%']] },
     { id: 'tide', name: 'High Tide', kind: 'Boost', color: '#2fb4ff', hex: 0x2fb4ff, hint: 'Rivals slide on water',
-      desc: 'Water floods the rival court for 2 s and two small fish swim in it. Any rival who starts moving cannot stop: they keep sliding and can only turn slowly until they hit the edge of the play area. Walking against the slide brakes it to half speed.',
-      stats: [['Lasts', '2 s'], ['Rivals', 'Cannot stop once they move'], ['Braking', 'Walk the other way: slides at half speed'], ['Turning', 'About 60 degrees per second']] },
+      desc: 'Water floods the rival court for 2 s and two small fish swim in it. It catches both rivals 75% of the time and only one of them, at random, 25% of the time. A caught rival who starts moving cannot stop: they keep sliding and can only turn slowly until they hit the edge of the play area. Walking against the slide brakes it to half speed.',
+      stats: [['Lasts', '2 s'], ['Rivals', 'Cannot stop once they move'], ['Who', 'Both rivals 75%, one at random 25%'], ['Braking', 'Walk the other way: slides at half speed'], ['Turning', 'About 60 degrees per second']] },
   ];
   // Order the list is shown in (and the order of the 1-9, 0, -, = keys).
   const ORDER = ['glass', 'quake', 'mirage', 'wind', 'hole', 'cosmo', 'curve', 'gas', 'comet', 'warp', 'frost', 'tide'];
@@ -1182,7 +1182,7 @@
   const FROST = { freeze: 0.5, tire: 0.3, bounce: 0.75 };   // tire: fatigue both rivals lose
   const QUAKE = { lift: 1, turn: [55, 85], keep: 1.0, crack: 3 };
   const COMET = { delay: 0.2 };
-  const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16 };   // turn: rad/s; start: speed (ft/s) that counts as moving
+  const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16, both: 0.75 };   // turn: rad/s; start: speed (ft/s) that counts as moving
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.25, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };   // flat like a frisbee, at chest height
   const GAS = { time: 3, mishit: 0.55 };
   const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // y: the hole floats above their heads
@@ -1268,7 +1268,8 @@
     if (p.pos.x !== bx) p.vel.x = 0;   // bumped the fence or the net: that direction stops
     if (p.pos.z !== bz) p.vel.z = 0;
   }
-  const drive = (p, tx, tz, maxSpeed, dt) => (S.tideT > 0 ? slide : moveTo)(p, tx, tz, maxSpeed, dt);
+  const flooded = (p) => S.tideT > 0 && (!S.tideOnly || S.tideOnly === p);
+  const drive = (p, tx, tz, maxSpeed, dt) => (flooded(p) ? slide : moveTo)(p, tx, tz, maxSpeed, dt);
   const horiz = (p, b) => Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z);
   function say(p, text, time = 1.2) { p.status = text; p.statusT = time; }
 
@@ -1518,6 +1519,7 @@
     } else if (u.id === 'tide') {
       if (S.tideT > 0) return;
       S.tideT = TIDE.time;
+      S.tideOnly = Math.random() < TIDE.both ? null : rivals[Math.random() < 0.5 ? 0 : 1];   // 25%: just one rival
       sfx.tide();
     } else if (u.id === 'cosmo') {
       if (S.cosmo) return;
@@ -1603,13 +1605,13 @@
     if (r.delay > 0) r.delay -= dt;
     if (r.frozen > 0) { r.frozen -= dt; r.vel.set(0, 0, 0); }
     else if (r.delay > 0) {
-      if (S.tideT > 0 && Math.hypot(r.vel.x, r.vel.z) >= TIDE.start) slide(r, r.pos.x + r.vel.x, r.pos.z + r.vel.z, RIVAL_SPEED, dt);
+      if (flooded(r) && Math.hypot(r.vel.x, r.vel.z) >= TIDE.start) slide(r, r.pos.x + r.vel.x, r.pos.z + r.vel.z, RIVAL_SPEED, dt);
       else r.vel.multiplyScalar(Math.exp(-dt * 8));
     }
     else if (S.phase === 'out' && !S.result && r.plan) drive(r, r.plan.x, r.plan.z, RIVAL_SPEED * speedMult(r.stamina), dt);
     else drive(r, r.home.x, r.home.z, RIVAL_SPEED * 0.6 * speedMult(r.stamina), dt);
-    if (S.tideT > 0 && Math.hypot(r.vel.x, r.vel.z) >= TIDE.start && r.status !== 'SLIDING') say(r, 'SLIDING', 0.5);
-    else if (S.tideT > 0 && r.status === 'SLIDING') r.statusT = Math.max(r.statusT, 0.1);
+    if (flooded(r) && Math.hypot(r.vel.x, r.vel.z) >= TIDE.start && r.status !== 'SLIDING') say(r, 'SLIDING', 0.5);
+    else if (flooded(r) && r.status === 'SLIDING') r.statusT = Math.max(r.statusT, 0.1);
     if (S.holeT > 0) {
       // Black Hole: rivals still run where they want, but the hole drags them
       // toward the hole the whole time, so running away from it is slow.
