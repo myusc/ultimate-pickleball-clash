@@ -360,8 +360,8 @@
   // Sponsor banners tied to the far-end fence, facing the court.
   {
     const BANNERS = [
-      { text: 'SD Pickleball', bg: '#13294b', fg: '#dcf54a', edge: '#dcf54a', x: -1 },
-      { text: 'HCW Rec Club', bg: '#ffffff', fg: '#c8102e', edge: '#1f7a3a', x: 1 },
+      { id: 'sd', text: 'SD Pickleball', bg: '#13294b', fg: '#dcf54a', edge: '#dcf54a', x: -1 },
+      { id: 'hcw', text: 'HCW Rec Club', bg: '#ffffff', fg: '#c8102e', edge: '#1f7a3a', x: 1 },
     ];
     const W = 14, H = 2.6;   // feet
     BANNERS.forEach((b) => {
@@ -398,6 +398,7 @@
       const m = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, side: THREE.DoubleSide }));
       // On the far-end fence behind the rivals, facing the camera.
       m.position.set(b.x * 8, 1.65, -AREA.halfL + 0.1);
+      m.userData = { id: b.id, x: b.x * 8 };
       m.receiveShadow = true;
       env.banners.add(m);
     });
@@ -531,7 +532,10 @@
       const g = c.getContext('2d');
       g.fillStyle = bg; g.fillRect(0, 0, w, h);
       g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.font = `400 ${h * 0.62}px "Lilita One", "Arial Black", sans-serif`;
+      let size = h * 0.62;   // shrink long names to fit the sign
+      const font = () => `400 ${size}px "Lilita One", "Arial Black", sans-serif`;
+      g.font = font();
+      while (g.measureText(text).width > w * 0.92 && size > 20) { size -= 4; g.font = font(); }
       g.fillText(text, w / 2, h / 2 + h * 0.03);
       t.needsUpdate = true;
     };
@@ -565,6 +569,7 @@
     gym: {
       name: 'Gym',
       show: ['screens', 'banners', 'stands'],
+      banners: ['sd'],   // only the SD Pickleball banner, centred
       crowd: 0.5,   // half-full bleachers
       bg: 0x2a3140, fog: [0x2a3140, 200, 520],
       hemi: [0xfff6e8, 0x8a6a48, 0.85], sun: [0xfff8ee, 0.7],
@@ -610,7 +615,7 @@
           g.add(rim);
         }
         // Rec centre sign high on the far wall.
-        const sign = new THREE.Mesh(new THREE.PlaneGeometry(32, 5), new THREE.MeshStandardMaterial({ map: signTex('HCW REC CENTER', '#13294b', '#dcf54a'), roughness: 0.8 }));
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(32, 5), new THREE.MeshStandardMaterial({ map: signTex('SD REC CENTER', '#13294b', '#dcf54a'), roughness: 0.8 }));
         sign.position.set(0, 23, -RL + 0.2);
         g.add(sign);
         return g;
@@ -730,6 +735,11 @@
     if (v.build && !v.group) scene.add(v.group = v.build());
     for (const o of Object.values(VENUES)) if (o.group) o.group.visible = o === v;
     for (const k in env) env[k].visible = v.show.includes(k);
+    // A venue may list which banners it hangs; a lone banner moves to the centre.
+    for (const b of env.banners.children) {
+      b.visible = !v.banners || v.banners.includes(b.userData.id);
+      b.position.x = v.banners && v.banners.length === 1 ? 0 : b.userData.x;
+    }
     crowd.setShare(v.crowd ?? 1);
     if (!v.bgTex) v.bgTex = v.sky ? skyTexture(v.sky) : new THREE.Color(v.bg);
     scene.background = v.bgTex;
