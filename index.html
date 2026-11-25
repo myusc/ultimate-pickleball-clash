@@ -886,7 +886,7 @@
      Units are feet. Characters face -Z. The rig:
        root ─ rig (height from leg angles) ─┬─ hip ─ knee        (×2 legs)
                                            └─ upper (lean + twist)
-                                                ├─ torso, head ─ hair, eyes, mouth
+                                                ├─ torso, head ─ hair, painted face
                                                 └─ shoulder ─ elbow (×2 arms; right holds the paddle)
      ===================================================================== */
   const TEAM_COLORS = { a: 0xff8a2b, b: 0xb45cff };
@@ -936,7 +936,81 @@
   const THIGH = 1.05, SHIN = 1.27, ANKLE = 0.13, HIP = THIGH + SHIN + ANKLE;
   const UPPER_ARM = 0.74, FOREARM = 0.7;
   const HEAD_Y = 2.75, HEAD_R = 0.62;
-  const mat = (color, roughness = 0.75) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
+  // Toon shading: three flat light bands instead of smooth shading. It reads
+  // as a cartoon and is cheaper to draw than the realistic material.
+  const TOON_RAMP = (() => {
+    const t = new THREE.DataTexture(new Uint8Array([105, 185, 255]), 3, 1, THREE.LuminanceFormat);
+    t.minFilter = t.magFilter = THREE.NearestFilter;
+    t.generateMipmaps = false;
+    t.needsUpdate = true;
+    return t;
+  })();
+  const mat = (color) => new THREE.MeshToonMaterial({ color, gradientMap: TOON_RAMP });
+
+  /* ---------- painted faces ----------
+     Eyes, brows, mouth and blush are painted on one patch of sphere just
+     outside the head, so a face is one cheap part and can change expression.
+     FACE is the patch: around the head (phi) and down from the crown (theta). */
+  const FACE = { w: 1.7, h: 1.3, th0: 0.95, px: 256, py: 196 };
+  FACE.phi0 = Math.PI * 1.5 - FACE.w / 2;
+  // Head-local point on the front of the head (x right, y up) -> canvas pixel.
+  function facePx(x, y) {
+    const z = -Math.sqrt(Math.max(0, HEAD_R * HEAD_R - x * x - y * y));
+    let phi = Math.atan2(z, -x);
+    if (phi < 0) phi += Math.PI * 2;
+    return [(phi - FACE.phi0) / FACE.w * FACE.px, (Math.acos(y / HEAD_R) - FACE.th0) / FACE.h * FACE.py];
+  }
+  const FACES = ['neutral', 'happy', 'sad', 'dizzy'];
+  function paintFace(kind, brow) {
+    const c = document.createElement('canvas');
+    c.width = FACE.px; c.height = FACE.py;
+    const g = c.getContext('2d');
+    g.lineCap = 'round';
+    for (const s of [-1, 1]) {   // s = +1 is the character's right, on the viewer's left
+      const [ex, ey] = facePx(s * 0.22, 0.06);
+      const [bx, by] = facePx(s * 0.24, 0.27);
+      const [cx, cy] = facePx(s * 0.37, -0.1);
+      // blush
+      g.fillStyle = kind === 'happy' ? 'rgba(255, 105, 120, 0.55)' : 'rgba(255, 120, 130, 0.32)';
+      g.beginPath(); g.ellipse(cx, cy, 15, 8, 0, 0, Math.PI * 2); g.fill();
+      // eyes
+      g.fillStyle = g.strokeStyle = '#17161f';
+      if (kind === 'happy') {
+        g.lineWidth = 6; g.beginPath(); g.arc(ex, ey + 6, 12, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+      } else if (kind === 'dizzy') {
+        g.lineWidth = 3.5; g.beginPath();
+        for (let a = 0; a < Math.PI * 5; a += 0.2) { const r = 1 + a * 1.1; g.lineTo(ex + Math.cos(a * s) * r, ey + Math.sin(a * s) * r); }
+        g.stroke();
+      } else {
+        const ry = kind === 'sad' ? 16 : 19;
+        g.beginPath(); g.ellipse(ex, ey, 13, ry, 0, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#ffffff';
+        g.beginPath(); g.arc(ex - 4, ey - 7, 5, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.arc(ex + 4, ey + 6, 2.2, 0, Math.PI * 2); g.fill();
+      }
+      // brows: inner end (toward the nose) raised when sad, lowered when dizzy
+      const tilt = kind === 'sad' ? -7 : kind === 'dizzy' ? 5 : kind === 'happy' ? -3 : 0;
+      const toMid = bx < FACE.px / 2 ? 14 : -14;
+      g.strokeStyle = brow; g.lineWidth = 6;
+      g.beginPath(); g.moveTo(bx - toMid, by); g.lineTo(bx + toMid, by + tilt); g.stroke();
+    }
+    const [mx, my] = facePx(0, -0.21);
+    g.strokeStyle = '#5a1e24'; g.fillStyle = '#5a1e24'; g.lineWidth = 5;
+    g.beginPath();
+    if (kind === 'happy') {
+      g.moveTo(mx - 20, my - 4); g.quadraticCurveTo(mx, my + 30, mx + 20, my - 4); g.closePath(); g.fill();
+      g.fillStyle = '#ff7b8a'; g.beginPath(); g.ellipse(mx, my + 8, 8, 4, 0, 0, Math.PI * 2); g.fill();
+    } else if (kind === 'sad') {
+      g.moveTo(mx - 15, my + 7); g.quadraticCurveTo(mx, my - 8, mx + 15, my + 7); g.stroke();
+    } else if (kind === 'dizzy') {
+      g.moveTo(mx - 16, my); for (let i = 1; i <= 4; i++) g.lineTo(mx - 16 + i * 8, my + (i % 2 ? -5 : 5)); g.stroke();
+    } else {
+      g.moveTo(mx - 15, my - 3); g.quadraticCurveTo(mx, my + 13, mx + 15, my - 3); g.stroke();
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.anisotropy = 4;
+    return t;
+  }
 
   const TORSO_PROFILE = [
     [0.0, 0.2], [0.57, 0.22], [0.62, 0.5], [0.62, 0.95], [0.69, 1.35], [0.72, 1.62],
@@ -1004,9 +1078,7 @@
     sleeve: new THREE.CylinderGeometry(0.195, 0.175, 0.38, 14),
     neck: new THREE.CylinderGeometry(0.2, 0.22, 0.32, 10),
     head: new THREE.SphereGeometry(HEAD_R, 24, 18),
-    eye: new THREE.SphereGeometry(0.12, 14, 10),
-    shine: new THREE.SphereGeometry(0.038, 8, 6),
-    mouth: new THREE.TorusGeometry(0.14, 0.03, 6, 16, Math.PI),
+    facePaint: new THREE.SphereGeometry(HEAD_R + 0.008, 20, 14, FACE.phi0, FACE.w, FACE.th0, FACE.h),
     hairCap: new THREE.SphereGeometry(HEAD_R + 0.05, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.56),
     blob: new THREE.SphereGeometry(0.3, 12, 10),
     shoulder: new THREE.SphereGeometry(0.21, 16, 12),
@@ -1104,9 +1176,8 @@
     const M = {
       skin: mat(def.skin, 0.8), shirt: mat(def.shirt, 0.7), shorts: mat(def.shorts, 0.85),
       shoe: mat(TEAM_COLORS[def.team], 0.55), sole: mat(0xf2f4f8, 0.8), sock: mat(0xffffff, 0.9),
-      hair: new THREE.MeshStandardMaterial({ color: def.hairColor, roughness: 0.9, side: THREE.DoubleSide }),
-      eye: mat(0x14141c, 0.25), shine: new THREE.MeshBasicMaterial({ color: 0xffffff }),
-      mouth: mat(0x5a1e24, 0.6), paddle: mat(def.paddle, 0.45), grip: mat(0x23232b, 0.95),
+      hair: new THREE.MeshToonMaterial({ color: def.hairColor, gradientMap: TOON_RAMP, side: THREE.DoubleSide }),
+      paddle: mat(def.paddle, 0.45), grip: mat(0x23232b, 0.95),
       stripe: mat(0xffffff, 0.7),
     };
     const mesh = (geo, m, x = 0, y = 0, z = 0) => {
@@ -1136,6 +1207,7 @@
       knee.add(mesh(GEO.sock, M.sock, 0, -SHIN + 0.2, 0));
       // Shoe origin sits on the floor under the ankle; sole first, upper on it.
       const shoe = joint(knee, 0, -SHIN - ANKLE, -0.06);
+      shoe.scale.setScalar(1.12);   // slightly big shoes read better on a small screen
       shoe.add(mesh(GEO.shoeSole, M.sole, 0, 0.03, 0));
       shoe.add(mesh(GEO.shoeUpper, M.shoe, 0, 0.075, 0));
       return { hip, knee };
@@ -1162,21 +1234,24 @@
     collar.scale.set(1.15, 1.0, 1);
     upper.add(collar);
 
-    // Head: skin sphere, big round eyes with a highlight, a smile.
+    // Head: skin sphere a little oversized (cartoon proportions) with a
+    // painted face. setFace() swaps the expression; each one is painted the
+    // first time it is needed.
     const head = joint(upper, 0, HEAD_Y, 0);
+    head.scale.setScalar(1.12);
     head.add(mesh(GEO.head, M.skin));
-    for (const sx of [-1, 1]) {
-      const eye = mesh(GEO.eye, M.eye, sx * 0.23, 0.08, -0.53);
-      eye.scale.set(0.9, 1.15, 0.55);
-      head.add(eye);
-      const shine = new THREE.Mesh(GEO.shine, M.shine);
-      shine.position.set(sx * 0.23 + 0.04, 0.14, -0.6);
-      head.add(shine);
+    const brow = '#' + new THREE.Color(def.hairColor).multiplyScalar(0.8).getHexString();
+    const faces = {};
+    const faceMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+    const face = new THREE.Mesh(GEO.facePaint, faceMat);
+    face.userData.faces = faces;   // so the textures can be freed with the body
+    head.add(face);
+    function setFace(kind) {
+      if (!FACES.includes(kind)) kind = 'neutral';
+      faceMat.map = faces[kind] || (faces[kind] = paintFace(kind, brow));
+      faceMat.needsUpdate = true;
     }
-    const mouth = mesh(GEO.mouth, M.mouth, 0, -0.2, -0.575);
-    mouth.rotation.set(-0.35, 0, Math.PI);
-    mouth.scale.set(1, 0.75, 1);
-    head.add(mouth);
+    setFace('neutral');
 
     // Hair lives in its own group so the style can be swapped at runtime.
     const hair = joint(head, 0, 0, 0);
@@ -1199,7 +1274,9 @@
       const elbow = joint(shoulder, 0, -UPPER_ARM, 0);
       elbow.add(mesh(GEO.elbow, M.skin));
       elbow.add(mesh(GEO.forearm, M.skin, 0, -FOREARM / 2, 0));
-      elbow.add(mesh(GEO.hand, M.skin, 0, -FOREARM - 0.05, 0));
+      const hand = mesh(GEO.hand, M.skin, 0, -FOREARM - 0.05, 0);
+      hand.scale.setScalar(1.25);   // chunky cartoon hands
+      elbow.add(hand);
       return { shoulder, elbow };
     };
     const armL = makeArm(-0.86);
@@ -1229,6 +1306,7 @@
       lx: 0.3, ly: 0, lz: -0.3, elL: 1.1,
       rx: 0.3, ry: -0.3, rz: 0.3, elR: 1.0,
       roll: 0, // paddle roll about the arm: PI/2 turns the face to lead the swing
+      nod: 0,  // extra head tilt: negative looks down (a slump)
     };
 
     // Overhead smash, 1.6 s loop, as keyframes (p = 0..1 through the loop).
@@ -1266,6 +1344,26 @@
 
     function targetPose(mode, t) {
       if (mode === 'overhead') return keyed(OVERHEAD, (t % 1.6) / 1.6);
+      if (mode === 'cheer') {
+        // Won the point: both arms up and little hops.
+        const hop = Math.abs(Math.sin(t * 7));
+        return {
+          lean: 0.05, twist: Math.sin(t * 3.5) * 0.15, bounce: hop * 0.3,
+          hipL: 0.15 - hop * 0.1, kneeL: -0.3 + hop * 0.2, hipR: 0.15 - hop * 0.1, kneeR: -0.3 + hop * 0.2,
+          lx: 2.9, ly: 0, lz: -0.35 - hop * 0.15, elL: 0.35,
+          rx: 2.9, ry: 0, rz: 0.35 + hop * 0.15, elR: 0.35, roll: 0, nod: 0.15,
+        };
+      }
+      if (mode === 'slump') {
+        // Lost the point: shoulders drop, arms hang, head down.
+        const b = Math.sin(t * 1.4);
+        return {
+          lean: -0.45, twist: 0, bounce: 0,
+          hipL: 0.3, kneeL: -0.45, hipR: 0.3, kneeR: -0.45,
+          lx: 0.15, ly: 0, lz: -0.08, elL: 0.25 + b * 0.05,
+          rx: 0.2, ry: 0, rz: 0.08, elR: 0.3 + b * 0.05, roll: 0, nod: -0.45,
+        };
+      }
       if (mode === 'run') {
         const f = t * 9.5, sL = Math.sin(f), cL = Math.cos(f);
         return {
@@ -1348,19 +1446,35 @@
     // crouch lowers the body and the feet stay planted.
     const legHeight = (hip, knee) => THIGH * Math.cos(hip) + SHIN * Math.cos(hip + knee) + ANKLE;
 
+    // Small life touches: a quick stretch at the start of each swing, gentle
+    // breathing, and a head that turns toward whatever look() points it at.
+    let pop = 0, lastMode = '', lastT = 0, breath = 0, lookWant = 0, lookNow = 0;
+    const SWINGS = ['swing', 'backhand', 'overhead'];
+    function look(yaw) { lookWant = Math.max(-0.9, Math.min(0.9, yaw)); }
+
     function update(mode, t, dt) {
+      const swinging = SWINGS.includes(mode);
+      if (swinging && (mode !== lastMode || t < lastT)) pop = 1;   // a new swing starts
+      lastMode = mode; lastT = t;
+      pop *= Math.exp(-dt * 6);
+      breath += dt;
+      lookNow += (lookWant - lookNow) * (1 - Math.exp(-dt * 6));
+
       const tgt = targetPose(mode, t);
-      const k = 1 - Math.exp(-dt * (mode === 'swing' || mode === 'backhand' || mode === 'overhead' ? 30 : 12));
-      for (const key in cur) cur[key] += (tgt[key] - cur[key]) * k;
+      const k = 1 - Math.exp(-dt * (swinging ? 30 : 12));
+      for (const key in cur) cur[key] += ((tgt[key] ?? 0) - cur[key]) * k;
 
       legL.hip.rotation.x = cur.hipL;  legL.knee.rotation.x = cur.kneeL;
       legR.hip.rotation.x = cur.hipR;  legR.knee.rotation.x = cur.kneeR;
       const stand = Math.max(legHeight(cur.hipL, cur.kneeL), legHeight(cur.hipR, cur.kneeR));
       rig.position.y = stand - HIP + cur.bounce;
+      rig.scale.set(1 - pop * 0.05, 1 + pop * 0.08, 1 - pop * 0.05);   // squash and stretch
 
       upper.rotation.x = cur.lean;
       upper.rotation.y = cur.twist;
-      head.rotation.x = -cur.lean * 0.7; // keep eyes level when leaning
+      head.rotation.x = -cur.lean * 0.7 + cur.nod; // keep eyes level when leaning
+      head.rotation.y = lookNow;
+      head.position.y = HEAD_Y + Math.sin(breath * 2.4) * 0.02;   // breathing
       armL.shoulder.rotation.set(cur.lx, cur.ly, cur.lz);
       armL.elbow.rotation.x = cur.elL;
       armR.shoulder.rotation.set(cur.rx, cur.ry, cur.rz);
@@ -1373,7 +1487,7 @@
       }
     }
 
-    return { def, root, update, setHair };
+    return { def, root, update, setHair, setFace, look };
   }
 
   window.KitchenClash = Object.assign(window.KitchenClash || {}, { createCharacter, CHARACTERS, TEAM_COLORS, HAIR, HAIR_STYLES });
@@ -2162,8 +2276,148 @@
     else p.stamina = Math.min(1, p.stamina + FATIGUE.refill * dt);
   }
 
+  // Join each player's ~40 parts into one mesh per moving piece (thigh, shin
+  // with sock and shoe, body, head, hair, upper arm, forearm, paddle...), so
+  // a player costs ~13 draw calls instead of ~40. The character factory is
+  // shared with characters.html, so this works on its output: it plays every
+  // animation once to find the joints that move, then merges all parts riding
+  // on the same joint, keeping each part's colour as a vertex colour.
+  // A soft glow in the team colour around a body's outline (where the surface
+  // turns away from the camera), so the two sides read at a glance.
+  function addRim(material, color) {
+    const rim = { value: new THREE.Color(color) };
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.rimColor = rim;
+      shader.fragmentShader = 'uniform vec3 rimColor;\n' + shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n  totalEmissiveRadiance += rimColor * pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 3.0) * 0.5;');
+    };
+  }
+
+  function mergeCharacter(ch) {
+    const nodes = [];
+    ch.root.traverse((o) => nodes.push(o));
+    const snap = (o) => [...o.position.toArray(), ...o.quaternion.toArray(), ...o.scale.toArray()];
+    const rest = new Map(nodes.map((o) => [o, snap(o)]));
+    const moves = new Set([ch.root]);
+    for (const mode of ['idle', 'run', 'swing', 'backhand', 'overhead']) {
+      for (const t of [0.13, 0.47, 0.71, 1.05, 1.39]) {
+        ch.update(mode, t, 1);
+        for (const o of nodes) {
+          const a = rest.get(o);
+          if (snap(o).some((v, i) => Math.abs(v - a[i]) > 1e-6)) moves.add(o);
+        }
+      }
+    }
+    ch.update('idle', 0, 1);
+    ch.root.updateMatrixWorld(true);
+    const toBody = new THREE.Matrix4().copy(ch.root.matrixWorld).invert();   // world -> this body's own space
+
+    // Group the still parts by the moving joint they ride on, and by the kind
+    // of material they need (one-sided, or two-sided for hair).
+    const pieces = new Map();
+    for (const o of nodes) {
+      if (!o.isMesh || moves.has(o)) continue;   // a moving mesh (the "you" marker) stays as it is
+      if (o.material.map) continue;              // the painted face keeps its own picture
+      const chain = [];
+      let a = o;
+      while (!moves.has(a)) { chain.push(a); a = a.parent; }
+      const m = new THREE.Matrix4();
+      for (let i = chain.length - 1; i >= 0; i--) { chain[i].updateMatrix(); m.multiply(chain[i].matrix); }
+      const key = o.material.type + o.material.side;
+      if (!pieces.has(a)) pieces.set(a, new Map());
+      const byKey = pieces.get(a);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push({ o, m });
+    }
+
+    const mats = {};
+    const v = new THREE.Vector3(), nm = new THREE.Matrix3(), inBody = new THREE.Matrix4();
+    for (const [joint, byKey] of pieces) {
+      const jointInBody = new THREE.Matrix4().multiplyMatrices(toBody, joint.matrixWorld);
+      for (const [key, parts] of byKey) {
+        const pos = [], nor = [], col = [], idx = [];
+        let off = 0;
+        for (const { o, m } of parts) {
+          const g = o.geometry, p = g.attributes.position, n = g.attributes.normal, c = o.material.color;
+          nm.getNormalMatrix(m);
+          inBody.multiplyMatrices(jointInBody, m);
+          for (let i = 0; i < p.count; i++) {
+            v.fromBufferAttribute(p, i).applyMatrix4(m); pos.push(v.x, v.y, v.z);
+            // Free depth: colours fade darker toward the feet (height in the
+            // standing pose), like soft light that does not reach the floor.
+            const y = v.fromBufferAttribute(p, i).applyMatrix4(inBody).y;
+            const shade = 0.68 + 0.32 * THREE.MathUtils.smoothstep(y, 0, 2.3);
+            v.fromBufferAttribute(n, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z);
+            col.push(c.r * shade, c.g * shade, c.b * shade);
+          }
+          const flip = m.determinant() < 0;   // a mirrored part needs its triangles turned round
+          const count = g.index ? g.index.count : p.count;
+          const at = (j) => (g.index ? g.index.getX(j) : j) + off;
+          for (let j = 0; j < count; j += 3) {
+            if (flip) idx.push(at(j), at(j + 2), at(j + 1));
+            else idx.push(at(j), at(j + 1), at(j + 2));
+          }
+          off += p.count;
+          o.parent.remove(o);
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+        geo.setIndex(idx);
+        const src = parts[0].o.material;
+        if (!mats[key]) {
+          mats[key] = src.isMeshToonMaterial
+            ? new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: src.gradientMap, side: src.side })
+            : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0, side: src.side });
+          addRim(mats[key], TEAM_COLORS[ch.def.team]);
+        }
+        const mesh = new THREE.Mesh(geo, mats[key]);
+        mesh.castShadow = parts.some((q) => q.o.castShadow);
+        mesh.userData.merged = true;
+        joint.add(mesh);
+      }
+    }
+  }
+
+  // Phones and tablets: each player's real-time shadow (about 40 parts, each
+  // drawn again into the shadow map) is swapped for one soft blob on the
+  // ground. Desktop keeps real shadows.
+  const BLOB_SHADOWS = isTouch;
+  const blobShadow = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0.62)');
+    grad.addColorStop(0.55, 'rgba(0, 0, 0, 0.42)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+    const geo = new THREE.PlaneGeometry(2.6, 2.6);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false });
+    return {
+      // Call after a player's body is (re)built.
+      attach(p) {
+        if (!BLOB_SHADOWS) return;
+        p.ch.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+        if (!p.blob) { p.blob = new THREE.Mesh(geo, mat); p.blob.renderOrder = 1; scene.add(p.blob); }
+      },
+      // Follows the player on the ground; smaller the higher they are.
+      update(p) {
+        if (!p.blob) return;
+        const s = 1 / (1 + Math.max(0, p.pos.y) * 0.25);
+        p.blob.position.set(p.pos.x, 0.03, p.pos.z);
+        p.blob.scale.setScalar(s);
+      },
+    };
+  })();
+
   const players = CHARACTERS.map((def) => {
     const ch = createCharacter(def);
+    mergeCharacter(ch);
     scene.add(ch.root);
     return {
       def, ch, team: def.team, isHuman: def.id === 'you',
@@ -2183,6 +2437,7 @@
       stamina: 1,         // fatigue bar: 1 = fresh
     };
   });
+  players.forEach(blobShadow.attach);
   const you = players.find((p) => p.def.id === 'you');
   const kai = players.find((p) => p.def.id === 'kai');
   // Put four distinct roster players into the four slots (you, partner,
@@ -2200,12 +2455,18 @@
         skin: r.skin, hair: r.hair, hairColor: r.hairColor, paddle: r.paddle,
       });
       const ch = createCharacter(def);
+      mergeCharacter(ch);
       scene.remove(p.ch.root);
-      p.ch.root.traverse((o) => { if (o.material) o.material.dispose(); });
+      p.ch.root.traverse((o) => {
+        if (o.material) o.material.dispose();
+        if (o.userData.merged) o.geometry.dispose();   // shared part shapes are kept; merged ones are this body's own
+        if (o.userData.faces) Object.values(o.userData.faces).forEach((t) => t.dispose());
+      });
       scene.add(ch.root);
       ch.root.position.copy(p.pos);
       ch.root.rotation.y = p.yaw;
-      p.def = def; p.ch = ch;
+      p.def = def; p.ch = ch; p.face = null;   // the new body starts with its normal face
+      blobShadow.attach(p);
       p.full = r.full;
       p.name = p.isHuman ? 'You' : r.short;
     });
@@ -2285,9 +2546,25 @@
     p.yaw += d * (1 - Math.exp(-dt * (p.swing ? 18 : 12)));
   }
 
+  // Expression: dizzy under Poison or a Cosmo knock, otherwise the mood from
+  // the last point (happy or sad) until it wears off, then the normal face.
+  function updateFace(p, dt) {
+    p.moodT = Math.max(0, (p.moodT || 0) - dt);
+    const want = gassed(p) || p.knock ? 'dizzy' : p.moodT > 0 ? p.mood : 'neutral';
+    if (p.face !== want) { p.face = want; p.ch.setFace(want); }
+  }
+  // After a point: winners cheer, losers slump. Called with the mood's length.
+  function setMood(winner, seconds) {
+    for (const p of players) { p.mood = p.team === winner ? 'happy' : 'sad'; p.moodT = seconds; }
+  }
+
   function animate(p, dt) {
     p.ch.root.position.set(p.pos.x, 0, p.pos.z);
     p.ch.root.rotation.y = p.yaw;
+    updateFace(p, dt);
+    // Heads follow the ball (0 = straight ahead; the body sets the limit).
+    const turn = Math.atan2(-(ball.pos.x - p.pos.x), -(ball.pos.z - p.pos.z)) - p.yaw;
+    p.ch.look(Math.atan2(Math.sin(turn), Math.cos(turn)));
     if (p.swing) {
       p.swing.t += dt;
       p.ch.update(p.swing.mode, p.swing.t, dt);
@@ -2297,7 +2574,8 @@
     const speed = Math.hypot(p.vel.x, p.vel.z);
     const running = speed > 1.5;
     p.clock += dt * (running ? Math.min(1.25, Math.max(0.45, speed / 13)) : 1);
-    p.ch.update(running ? 'run' : 'idle', p.clock, dt);
+    const celebrate = (state.phase === 'point' || state.phase === 'over') && p.moodT > 0;
+    p.ch.update(running ? 'run' : celebrate ? (p.mood === 'happy' ? 'cheer' : 'slump') : 'idle', p.clock, dt);
   }
 
   /* =====================================================================
@@ -2741,6 +3019,7 @@
     state.timer = state.autoplay ? 1.2 : 2.2;
     state.landing = null;
     const note = award(w);
+    setMood(w, state.timer);
     const { a, b } = state.score;
     if ((a >= 11 || b >= 11) && Math.abs(a - b) >= 2) state.winner = a > b ? 'a' : 'b';
     stats.rallies++;
@@ -2766,6 +3045,7 @@
 
   function gameOver() {
     state.phase = 'over';
+    setMood(state.winner, 8);   // a longer celebration for the match
     const { a, b } = state.score;
     stats.games.push({ a, b, winner: state.winner, scoring: settings.scoring, diff: settings.diff });
     // Self-check: a finished game must be 11+ and won by exactly 2 past 10-10.
@@ -4624,7 +4904,10 @@
     // Some browsers start the page at zero size; re-measure until it matches.
     const w = window.innerWidth, h = window.innerHeight;
     if (h > 0 && w > 0 && !(Math.abs(camera.aspect - w / h) < 0.001)) resize();
-    for (const p of players) animate(p, slowed(p) && !cards.frozen() ? dt * WARP.rivals : dt);
+    for (const p of players) {
+      animate(p, slowed(p) && !cards.frozen() ? dt * WARP.rivals : dt);
+      blobShadow.update(p);
+    }
     fx.update(dt, time);
     ufx.update(cards.frozen() ? 0 : dt, time);
     drawBars();
