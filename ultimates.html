@@ -1147,11 +1147,11 @@
       desc: 'Raises a wall of fire over a third of the net for 8 s, at a random spot along it. It is 6.5 ft tall. Any ball the rivals hit through it bounces back up to their side, 50% higher than a plain rebound, but lobs fly over it and balls that cross the rest of the net get past. Your own shots pass through it.',
       stats: [['Lasts', '8 s'], ['Size', 'About 7 ft wide, 6.5 ft tall'], ['Rebound', '50% higher'], ['Lobs', 'Fly over it'], ['Blocks', 'A random third of the net']] },
     { id: 'quake', name: 'Earthquake', kind: 'Shot', color: '#d9894a', hex: 0xd9894a, hint: 'Cracks the court',
-      desc: 'Your next hit shakes the ground and cracks the rival court where the ball will land. The shaking keeps rivals off balance until it lands, then the ball kicks off the crack at a normal height but an unexpected angle.',
-      stats: [['Ball speed', '35 ft/s'], ['Bounce', 'Normal height, turned 30 to 60 degrees'], ['Rivals', 'Off balance until it lands'], ['Crack', 'Lasts 3 s']] },
+      desc: 'Your next hit shakes the ground and cracks the rival court where the ball will land. The shaking keeps rivals off balance until it lands, then the ball kicks off the crack 25% higher, slowing to 10 ft/s, at an unexpected angle.',
+      stats: [['Ball speed', '43 ft/s, then 10 ft/s off the crack'], ['Bounce', '25% higher, turned 30 to 60 degrees'], ['Rivals', 'Off balance until it lands'], ['Crack', 'Lasts 3 s']] },
     { id: 'hole', name: 'Black Hole', kind: 'Boost', color: '#a06bff', hex: 0xa06bff, hint: 'Pulls rivals back',
-      desc: 'Opens a black hole at a random spot near the rival baseline for 1 s. Both rivals are dragged toward it. They can still run for the ball, but the pull slows them down whenever they run away from the hole. The ball is not affected.',
-      stats: [['Lasts', '1 s'], ['Where', 'Random spot near the rival baseline'], ['Pull', '6 ft/s toward the hole'], ['Rivals', 'Can fight it: 14 ft/s run minus the pull'], ['Ball', 'Not affected']] },
+      desc: 'Opens a black hole at a random spot near the rival baseline for 1.2 s. Both rivals are dragged toward it. They can still run for the ball, but the pull slows them down whenever they run away from the hole. The ball is not affected.',
+      stats: [['Lasts', '1.2 s'], ['Where', 'Random spot near the rival baseline'], ['Pull', '6 ft/s toward the hole'], ['Rivals', 'Can fight it: 14 ft/s run minus the pull'], ['Ball', 'Not affected']] },
     { id: 'gas', name: 'Poison', kind: 'Boost', color: '#b44dd6', hex: 0xb44dd6, hint: 'Spoils both rivals\' hits',
       desc: 'A cloud of purple gas wraps around both rivals for 3 s. While they are in it, more than half of their hits go wrong and fly long or wide.',
       stats: [['Lasts', '3 s'], ['Target', 'Both rivals'], ['Mis-hits', '55% of their hits, normally 0%']] },
@@ -1180,12 +1180,14 @@
   const WARP = { time: 3, ball: 0.7, rivals: 0.45 };
   const WIND = { time: 10, boost: 1.3, tired: 0.45 };
   const FROST = { freeze: 0.5, tire: 0.3, bounce: 0.75 };   // tire: fatigue both rivals lose
-  const QUAKE = { lift: 1, turn: [30, 60], keep: 1.0, crack: 3 };
+  // Earthquake kick off the crack: lift = bounce speed x sqrt(1.25), so it rises 25% higher;
+  // turn = degrees it veers; speed = its speed along the ground after the kick (ft/s).
+  const QUAKE = { lift: Math.sqrt(1.25), turn: [30, 60], speed: 10, crack: 3 };
   const COMET = { delay: 0.4 };
   const TIDE = { time: 2, turn: 1.05, start: 1, brake: 0.5, decel: 16, both: 0.75 };   // turn: rad/s; start: speed (ft/s) that counts as moving
   const COSMO = { speed: 60, knock: 0.35, fatigue: 0.5, both: 0.5, startR: 1.8, endR: 9, windup: 0.15, y: 3.2 };   // flat like a frisbee, at chest height
   const GAS = { time: 3, mishit: 0.55 };
-  const HOLE = { time: 1, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // y: the hole floats above their heads
+  const HOLE = { time: 1.2, pull: 6, spread: 1.2, y: 10, x: 8, z: [18.5, 21.5] };   // y: the hole floats above their heads
   const GLASS = { time: 8, h: 6.5, lift: 1.5, z: 0.35, halfW: COURT.postX / 3 };   // a third of the net (placed at random), just on your side
 
   /* ---------------- players ---------------- */
@@ -1293,8 +1295,9 @@
       // Earthquake: the crack kicks the ball up high and turns it (quake = turn angle, radians).
       if (b.quake && b.bounces === 1) {
         const c = Math.cos(b.quake), s = Math.sin(b.quake), vx = b.vel.x, vz = b.vel.z;
-        b.vel.x = (vx * c - vz * s) * QUAKE.keep;
-        b.vel.z = (vx * s + vz * c) * QUAKE.keep;
+        const k = QUAKE.speed / (Math.hypot(vx, vz) || 1);   // turned, then set to QUAKE.speed
+        b.vel.x = (vx * c - vz * s) * k;
+        b.vel.z = (vx * s + vz * c) * k;
         b.vel.y *= QUAKE.lift;
         b.quake = 0;
       }
